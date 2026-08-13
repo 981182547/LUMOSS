@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
@@ -46,10 +47,15 @@ class _DevicePickerSheetState extends State<_DevicePickerSheet> {
     final perm = await ble.hasPermissions();
     final adapter = await ble.isAdapterOn();
     if (!mounted) return;
+    // iOS 不需要 App 申请蓝牙权限(系统首次扫描时自行弹窗),不显示权限项免得误导
+    final isAndroid =
+        !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
     setState(() {
-      _diag = '权限 ${perm ? "已授予" : "缺失"} · '
-          '蓝牙 ${adapter ? "已开启" : "未开启"} · '
-          '扫到 ${ble.scanResults.length} 个';
+      _diag = [
+        if (isAndroid) '权限 ${perm ? "已授予" : "缺失"}',
+        '蓝牙 ${adapter ? "已开启" : "未开启"}',
+        '扫到 ${ble.scanResults.length} 个',
+      ].join(' · ');
     });
   }
 

@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -58,7 +58,15 @@ class BleManager implements LinkTransport {
   void _log(String m) => onLog(m);
 
   // ---------------- 权限 ----------------
+
+  /// 只有安卓需要 App 主动申请蓝牙/定位权限。
+  /// iOS 的蓝牙权限由系统在首次扫描时自动弹窗,且不需要定位权限;
+  /// 这几个 Permission 在 iOS 上永远不会是 granted,照搬安卓逻辑会把扫描直接拦死。
+  static bool get _needsRuntimePermissions =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
   Future<bool> hasPermissions() async {
+    if (!_needsRuntimePermissions) return true;
     final scan = await Permission.bluetoothScan.status;
     final connect = await Permission.bluetoothConnect.status;
     final loc = await Permission.location.status;
@@ -87,6 +95,7 @@ class BleManager implements LinkTransport {
   }
 
   Future<bool> requestPermissions() async {
+    if (!_needsRuntimePermissions) return true;
     // 安卓 BLE 扫描依赖定位权限,必须一并申请,否则扫不到任何设备
     final res = await [
       Permission.bluetoothScan,
@@ -108,7 +117,7 @@ class BleManager implements LinkTransport {
     // 先查状态会得到 unknown,误判成"蓝牙未开启"而直接放弃。
     if (!await hasPermissions()) {
       if (!await requestPermissions()) {
-        _log('需要蓝牙和位置权限才能搜索灯板');
+        _log('需要蓝牙和位置权限才能搜索灯板(请在系统设置里开启)');
         return false;
       }
     }
