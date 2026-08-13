@@ -1,0 +1,61 @@
+# ============================================================
+# 在 GitHub 的 macOS 机器上编译 iOS,产出未签名 .ipa
+#
+# 用法:
+#   1. 推送到 main 分支会自动跑;
+#   2. 也可以在 GitHub 仓库页 → Actions → 选这个工作流 → Run workflow 手动触发。
+#   3. 跑完在该次运行页面底部 Artifacts 里下载 LUMOSYNC-ipa。
+#
+# 下载到的是 zip,解压后得到 .ipa,再用 Windows 上的 Sideloadly 自签装到 iPhone。
+# ============================================================
+
+name: iOS 构建(未签名)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:        # 允许在网页上手动点按钮触发
+
+jobs:
+  build-ios:
+    name: 编译 iOS
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 显示环境
+        run: flutter --version
+
+      - name: 拉取依赖
+        run: flutter pub get
+
+      - name: 静态检查
+        run: flutter analyze
+
+      - name: 编译 iOS(不签名)
+        run: flutter build ios --release --no-codesign
+
+      - name: 打包成 .ipa
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          cp -r build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -r -q LUMOSYNC-unsigned.ipa Payload
+          rm -rf Payload
+          ls -lh LUMOSYNC-unsigned.ipa
+
+      - name: 上传构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUMOSYNC-ipa
+          path: build/ios/ipa/*.ipa
+          retention-days: 30
