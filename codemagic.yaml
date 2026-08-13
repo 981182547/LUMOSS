@@ -1,0 +1,92 @@
+# ============================================================
+# Codemagic 云端构建配置 —— 在没有 Mac 的情况下编译 iOS
+#
+# 用法:把项目推到 GitHub/GitLab,在 codemagic.io 关联仓库即可。
+# 两个工作流:
+#   ios-unsigned  —— 不签名,产出 .ipa,配合 Windows 上的 Sideloadly 自签(免费)
+#   ios-testflight—— 签名并自动上传 TestFlight(需要 99 美元开发者账号)
+# ============================================================
+
+workflows:
+  # ---------- 方案一:免费路线(不签名 + 自己侧载) ----------
+  ios-unsigned:
+    name: iOS 未签名构建(配合 Sideloadly 侧载)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      - name: 拉取依赖
+        script: flutter pub get
+
+      - name: 静态检查
+        script: flutter analyze
+
+      - name: 编译 iOS(不签名)
+        script: flutter build ios --release --no-codesign
+
+      - name: 打包成 .ipa
+        script: |
+          mkdir -p build/ios/ipa/Payload
+          cp -r build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -r -q LUMOSYNC-unsigned.ipa Payload
+          rm -rf Payload
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      email:
+        recipients:
+          - dengxiangjie01@gmail.com
+        notify:
+          success: true
+          failure: true
+
+  # ---------- 方案二:正式路线(签名 + TestFlight) ----------
+  # 需要先在 Codemagic 里配好:
+  #   1. App Store Connect API Key(集成 → Developer Portal)
+  #   2. iOS 代码签名证书(会自动生成)
+  ios-testflight:
+    name: iOS 签名构建并上传 TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    integrations:
+      app_store_connect: LUMOSYNC_ASC_KEY   # 改成你在 Codemagic 里配置的 key 名称
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.lumosync.led
+      vars:
+        BUNDLE_ID: "com.lumosync.led"
+    scripts:
+      - name: 拉取依赖
+        script: flutter pub get
+
+      - name: 设置签名配置
+        script: xcode-project use-profiles
+
+      - name: 递增构建号
+        script: |
+          # 用 TestFlight 上已有的最大构建号 + 1,避免重复被拒
+          BUILD_NUMBER=$(app-store-connect get-latest-testflight-build-number "$APP_APPLE_ID" 2>/dev/null || echo "0")
+          echo "上一个构建号: $BUILD_NUMBER"
+          flutter build ipa --release \
+            --build-number=$(($BUILD_NUMBER + 1)) \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+      email:
+        recipients:
+          - dengxiangjie01@gmail.com
+        notify:
+          success: true
+          failure: true
