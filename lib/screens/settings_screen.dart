@@ -71,7 +71,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final probe = _buildProbe();
     final amps = (w * h * 0.06).toStringAsFixed(1);
-    const presetSizes = [[8, 8], [16, 16], [32, 8], [32, 16]];
+    const presetSizes = [
+      [8, 8], [16, 16], [32, 8], [32, 16],
+      [32, 32], [8, 32], [64, 8], [64, 16],
+    ];
 
     return Container(
       color: appBackground,
@@ -111,47 +114,50 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               fontSize: 14,
                               color: textPrimary,
                               fontWeight: FontWeight.w500)),
-                      const SizedBox(height: 10),
-                      LabeledSlider(
+                      const SizedBox(height: 6),
+                      NumberStepper(
                         label: '宽度 (列)',
                         value: w,
-                        min: 1,
                         max: 64,
-                        onChange: (v) => setState(() => w = v),
+                        onChanged: (v) => setState(() => w = v),
                       ),
-                      LabeledSlider(
+                      NumberStepper(
                         label: '高度 (行)',
                         value: h,
-                        min: 1,
                         max: 64,
-                        onChange: (v) => setState(() => h = v),
+                        onChanged: (v) => setState(() => h = v),
                       ),
+                      const SizedBox(height: 4),
                       Text('共 ${w * h} 颗灯珠 · 满白约 $amps A',
                           style: const TextStyle(
                               fontSize: 11, color: textSecondary)),
+                      if (w * h > 1024)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 4),
+                          child: Text(
+                            '超过 1024 颗,固件默认的 MAX_LEDS 装不下,需要同步调大',
+                            style: TextStyle(fontSize: 11, color: warnAmber),
+                          ),
+                        ),
 
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       const Text('常用尺寸',
                           style:
                               TextStyle(fontSize: 12, color: textSecondary)),
                       const SizedBox(height: 8),
-                      Row(
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
                         children: [
-                          for (var i = 0; i < presetSizes.length; i++) ...[
-                            if (i > 0) const SizedBox(width: 8),
-                            Expanded(
-                              child: ChipTag(
-                                text:
-                                    '${presetSizes[i][0]}×${presetSizes[i][1]}',
-                                selected: w == presetSizes[i][0] &&
-                                    h == presetSizes[i][1],
-                                onTap: () => setState(() {
-                                  w = presetSizes[i][0];
-                                  h = presetSizes[i][1];
-                                }),
-                              ),
+                          for (final s in presetSizes)
+                            ChipTag(
+                              text: '${s[0]}×${s[1]}',
+                              selected: w == s[0] && h == s[1],
+                              onTap: () => setState(() {
+                                w = s[0];
+                                h = s[1];
+                              }),
                             ),
-                          ],
                         ],
                       ),
                     ],

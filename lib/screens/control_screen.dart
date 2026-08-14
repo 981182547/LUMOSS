@@ -333,6 +333,8 @@ class _BrightCard extends StatelessWidget {
               onChanged: (v) {
                 state.brightness = v;
                 state.touch();
+                // 拖动时就实时下发(内部节流),灯板跟手而不是松手才跳变
+                state.pushBrightnessLive();
               },
               onChangeEnd: (_) => state.pushBrightness(),
             ),

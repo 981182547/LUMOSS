@@ -86,7 +86,18 @@ class _HomePageState extends State<HomePage> {
         state.statusLog = m;
         if (mounted) setState(() {});
       },
+      // 记住连上的灯板,下次自动连回去
+      onRemember: state.rememberDevice,
+      // 灯板主动上报的状态(心跳 / 当前模式等)
+      onDeviceMessage: (op, payload) {
+        debugPrint('[灯板上报] op=0x${op.toRadixString(16)} $payload');
+      },
     );
+
+    // 启动时自动连回上次的灯板,省掉每次手动选设备
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      state.ble?.tryAutoConnect(state.lastDeviceId);
+    });
 
     // WiFi 管理器(大数据传输时用)
     state.wifi = WifiManager(

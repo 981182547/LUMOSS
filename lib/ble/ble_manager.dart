@@ -20,12 +20,27 @@ class BleManager implements LinkTransport {
   /// 扫描列表有更新时回调,供界面显示设备选择列表(由设备选择弹层临时接管)
   void Function()? onScanUpdate;
 
+  /// 连接成功后回调,把设备 ID 交给上层持久化,下次自动重连用
+  final void Function(String deviceId)? onRemember;
+
+  /// 收到灯板主动上报的数据(通过 Notify 特征)
+  final void Function(int op, List<int> payload)? onDeviceMessage;
+
   BleManager({
     required this.onState,
     this.onLog = _noop,
     this.onScanUpdate,
+    this.onRemember,
+    this.onDeviceMessage,
   });
   static void _noop(String _) {}
+
+  /// 断线后自动重连(用户手动断开时不触发)
+  bool autoReconnect = true;
+  String? _lastDeviceId;
+  bool _manualDisconnect = false;
+  int _retry = 0;
+  Timer? _retryTimer;
 
   /// 扫描到的设备(界面据此显示可选列表)
   final List<ScanResult> scanResults = [];
@@ -43,6 +58,7 @@ class BleManager implements LinkTransport {
 
   StreamSubscription<List<ScanResult>>? _scanSub;
   StreamSubscription<BluetoothConnectionState>? _connSub;
+  StreamSubscription<List<int>>? _notifySub;
 
   // 顺序写入锁:把每次发送串起来,避免并发写特征
   Future<void> _writeChain = Future.value();
@@ -266,6 +282,9 @@ class BleManager implements LinkTransport {
 
       _rx = rx;
 
+      // 订阅灯板主动上报(状态回报 / 心跳 / 错误)
+      await _subscribeNotify(services);
+
       // 连上之后才监听断开事件:提前监听会立刻收到一个 disconnected 初始值
       await _connSub?.cancel();
       _connSub = device.connectionState.listen((s) {
@@ -274,8 +293,14 @@ class BleManager implements LinkTransport {
           _log('灯板已断开');
           _cleanup();
           _setState(Conn.disconnected);
+          if (!_manualDisconnect) _scheduleReconnect();
         }
       });
+
+      _lastDeviceId = device.remoteId.str;
+      _manualDisconnect = false;
+      _retry = 0;
+      onRemember?.call(_lastDeviceId!);
 
       _setState(Conn.connected);
       _log('就绪');
@@ -286,6 +311,86 @@ class BleManager implements LinkTransport {
       _log('连接失败: $e');
       await disconnect();
     }
+  }
+
+  /// 订阅灯板的 Notify 特征,解析它主动上报的 0xA5 封包
+  Future<void> _subscribeNotify(List<BluetoothService> services) async {
+    BluetoothCharacteristic? tx;
+    for (final svc in services) {
+      for (final c in svc.characteristics) {
+        if (c.uuid == Guid(Protocol.txUuid)) tx = c;
+      }
+    }
+    if (tx == null) return;
+    try {
+      await tx.setNotifyValue(true);
+      await _notifySub?.cancel();
+      _notifySub = tx.onValueReceived.listen(_onDeviceData);
+      _log('已订阅灯板状态上报');
+    } catch (e) {
+      _log('订阅状态上报失败: $e');
+    }
+  }
+
+  // 灯板发来的数据也是流式的,同样要按 0xA5 封包重组
+  final List<int> _rxBuf = [];
+
+  void _onDeviceData(List<int> chunk) {
+    _rxBuf.addAll(chunk);
+    while (true) {
+      // 找包头
+      final start = _rxBuf.indexOf(Protocol.magic);
+      if (start < 0) {
+        _rxBuf.clear();
+        return;
+      }
+      if (start > 0) _rxBuf.removeRange(0, start);
+      if (_rxBuf.length < 4) return;
+
+      final op = _rxBuf[1];
+      final len = (_rxBuf[2] << 8) | _rxBuf[3];
+      if (_rxBuf.length < 4 + len) return; // 还没收齐
+
+      final payload = _rxBuf.sublist(4, 4 + len);
+      _rxBuf.removeRange(0, 4 + len);
+      onDeviceMessage?.call(op, payload);
+    }
+  }
+
+  // ---------------- 自动重连 ----------------
+  void _scheduleReconnect() {
+    if (!autoReconnect || _lastDeviceId == null) return;
+    _retryTimer?.cancel();
+    // 退避:2s、4s、8s、15s,之后固定 30s,避免一直高频重试耗电
+    const backoff = [2, 4, 8, 15, 30];
+    final delay = backoff[_retry < backoff.length ? _retry : backoff.length - 1];
+    _retry++;
+    _log('$delay 秒后尝试重连…');
+    _retryTimer = Timer(Duration(seconds: delay), () {
+      if (_state == Conn.disconnected) reconnectLast();
+    });
+  }
+
+  /// 直接连回上次的设备(不用重新扫描)
+  Future<void> reconnectLast() async {
+    final id = _lastDeviceId;
+    if (id == null) return;
+    if (_state != Conn.disconnected) return;
+    if (!await _ensureReady()) return;
+    try {
+      await connectTo(BluetoothDevice.fromId(id));
+    } catch (e) {
+      _log('重连失败: $e');
+      _scheduleReconnect();
+    }
+  }
+
+  /// 上层在启动时调用:如果记得上次的设备就自动连上
+  Future<void> tryAutoConnect(String? savedId) async {
+    if (savedId == null || savedId.isEmpty) return;
+    _lastDeviceId = savedId;
+    _log('正在自动连接上次的灯板…');
+    await reconnectLast();
   }
 
   // ---------------- 发送 ----------------
@@ -311,7 +416,12 @@ class BleManager implements LinkTransport {
   }
 
   // ---------------- 断开 ----------------
+
+  /// 用户主动断开:不触发自动重连
   Future<void> disconnect() async {
+    _manualDisconnect = true;
+    _retryTimer?.cancel();
+    _retryTimer = null;
     try {
       await FlutterBluePlus.stopScan();
     } catch (_) {}
@@ -327,7 +437,15 @@ class BleManager implements LinkTransport {
     _scanSub = null;
     _connSub?.cancel();
     _connSub = null;
+    _notifySub?.cancel();
+    _notifySub = null;
+    _rxBuf.clear();
     _rx = null;
     _mtu = 23;
+  }
+
+  void dispose() {
+    _retryTimer?.cancel();
+    _cleanup();
   }
 }

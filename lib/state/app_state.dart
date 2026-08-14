@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -105,6 +107,14 @@ class AppState extends ChangeNotifier {
   BleManager? ble;
   WifiManager? wifi;
 
+  /// 上次连接的灯板 ID,下次打开自动连回去
+  String? lastDeviceId;
+
+  void rememberDevice(String id) {
+    lastDeviceId = id;
+    prefs.setString('last_device', id);
+  }
+
   /// WiFi 设置(持久化)。默认关闭:小数据量场景蓝牙完全够用,
   /// 关掉就不会在传图片/动画时弹"是否改用 WiFi"打扰用户。
   bool wifiEnabled = false;
@@ -125,6 +135,7 @@ class AppState extends ChangeNotifier {
     final s = AppState(prefs);
     s._config = s._loadConfig();
     s.brightness = prefs.getDouble('bright') ?? 0.6;
+    s.lastDeviceId = prefs.getString('last_device');
     s.wifiEnabled = prefs.getBool('wifi_enabled') ?? false;
     s.wifiHost = prefs.getString('wifi_host') ?? '192.168.4.1';
     s.wifiPort = prefs.getInt('wifi_port') ?? 8266;
@@ -268,8 +279,36 @@ class AppState extends ChangeNotifier {
   }
 
   void pushBrightness() {
+    _brightTimer?.cancel();
+    _brightTimer = null;
     prefs.setDouble('bright', brightness);
     _sendCmd(Protocol.brightness((brightness * 255).round()));
+  }
+
+  // 亮度节流:拖动滑条时按固定间隔下发,让灯板跟手,
+  // 又不会把每一个像素级的变化都塞进蓝牙队列。
+  Timer? _brightTimer;
+  DateTime _lastBrightSend = DateTime.fromMillisecondsSinceEpoch(0);
+  static const _brightIntervalMs = 90;
+
+  /// 拖动过程中调用:最多每 90ms 发一次,末尾那次一定会补发
+  void pushBrightnessLive() {
+    final now = DateTime.now();
+    final elapsed = now.difference(_lastBrightSend).inMilliseconds;
+    if (elapsed >= _brightIntervalMs) {
+      _lastBrightSend = now;
+      _sendCmd(Protocol.brightness((brightness * 255).round()));
+    } else {
+      // 还没到间隔,安排一次补发,保证停手时的值不会丢
+      _brightTimer?.cancel();
+      _brightTimer = Timer(
+        Duration(milliseconds: _brightIntervalMs - elapsed),
+        () {
+          _lastBrightSend = DateTime.now();
+          _sendCmd(Protocol.brightness((brightness * 255).round()));
+        },
+      );
+    }
   }
 
   void pushPower() => _sendCmd(Protocol.power(powerOn));

@@ -125,6 +125,148 @@ class LabeledSlider extends StatelessWidget {
   }
 }
 
+/// 数字步进器:加减按钮 + 可直接输入。
+/// 比滑条更适合调"多少行多少列"这种需要精确值的场景。
+class NumberStepper extends StatefulWidget {
+  final String label;
+  final int value;
+  final int min;
+  final int max;
+  final ValueChanged<int> onChanged;
+
+  const NumberStepper({
+    super.key,
+    required this.label,
+    required this.value,
+    this.min = 1,
+    this.max = 64,
+    required this.onChanged,
+  });
+
+  @override
+  State<NumberStepper> createState() => _NumberStepperState();
+}
+
+class _NumberStepperState extends State<NumberStepper> {
+  late final TextEditingController _ctrl;
+  late final FocusNode _focus;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: '${widget.value}');
+    _focus = FocusNode()..addListener(() {
+      if (!_focus.hasFocus) _commit();
+    });
+  }
+
+  @override
+  void didUpdateWidget(NumberStepper old) {
+    super.didUpdateWidget(old);
+    // 外部改了值(比如点了常用尺寸)时同步显示,但别打断正在输入的用户
+    if (widget.value != old.value && !_focus.hasFocus) {
+      _ctrl.text = '${widget.value}';
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  void _commit() {
+    final v = int.tryParse(_ctrl.text.trim());
+    final clamped = (v ?? widget.value).clamp(widget.min, widget.max);
+    _ctrl.text = '$clamped';
+    if (clamped != widget.value) widget.onChanged(clamped);
+  }
+
+  void _step(int delta) {
+    final v = (widget.value + delta).clamp(widget.min, widget.max);
+    if (v != widget.value) {
+      _ctrl.text = '$v';
+      widget.onChanged(v);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(widget.label,
+                style: const TextStyle(fontSize: 13, color: textSecondary)),
+          ),
+          _StepButton(
+            icon: Icons.remove_rounded,
+            enabled: widget.value > widget.min,
+            onTap: () => _step(-1),
+          ),
+          SizedBox(
+            width: 58,
+            child: TextField(
+              controller: _ctrl,
+              focusNode: _focus,
+              textAlign: TextAlign.center,
+              keyboardType: TextInputType.number,
+              onSubmitted: (_) => _commit(),
+              style: const TextStyle(
+                  fontSize: 16,
+                  color: textPrimary,
+                  fontWeight: FontWeight.w600),
+              cursorColor: accent,
+              decoration: const InputDecoration(
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 8),
+                border: InputBorder.none,
+              ),
+            ),
+          ),
+          _StepButton(
+            icon: Icons.add_rounded,
+            enabled: widget.value < widget.max,
+            onTap: () => _step(1),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StepButton extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _StepButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: enabled ? accentContainer : const Color(0x14FFFFFF),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Icon(icon,
+            size: 18,
+            color: enabled ? onAccentContainer : textSecondary),
+      ),
+    );
+  }
+}
+
 /// 主按钮(品牌渐变)
 class PrimaryButton extends StatelessWidget {
   final String text;
