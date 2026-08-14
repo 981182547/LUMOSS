@@ -18,11 +18,15 @@ class LedPanelPreview extends StatelessWidget {
   final double? maxHeight;
   final bool expandable;
 
+  /// 画网格线,编辑器里数格子用
+  final bool showGrid;
+
   const LedPanelPreview({
     super.key,
     required this.frame,
     this.maxHeight,
     this.expandable = false,
+    this.showGrid = false,
   });
 
   @override
@@ -37,7 +41,7 @@ class LedPanelPreview extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(6),
             child: CustomPaint(
-              painter: _PanelPainter(frame),
+              painter: _PanelPainter(frame, showGrid: showGrid),
               size: Size.infinite,
             ),
           ),
@@ -152,7 +156,8 @@ void showPanelFullscreen(
 
 class _PanelPainter extends CustomPainter {
   final Frame frame;
-  _PanelPainter(this.frame);
+  final bool showGrid;
+  _PanelPainter(this.frame, {this.showGrid = false});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -188,6 +193,37 @@ class _PanelPainter extends CustomPainter {
         } else {
           canvas.drawCircle(Offset(cx, cy), radius * 0.85, offPaint);
         }
+      }
+    }
+
+    // 网格线:格子够大时才画,太密会糊成一片
+    if (showGrid && cell > 9) {
+      final gridPaint = Paint()
+        ..color = const Color(0x22FFFFFF)
+        ..strokeWidth = 0.6;
+      for (var x = 0; x <= frame.width; x++) {
+        final gx = offsetX + cell * x;
+        canvas.drawLine(
+            Offset(gx, offsetY), Offset(gx, offsetY + cell * frame.height), gridPaint);
+      }
+      for (var y = 0; y <= frame.height; y++) {
+        final gy = offsetY + cell * y;
+        canvas.drawLine(
+            Offset(offsetX, gy), Offset(offsetX + cell * frame.width, gy), gridPaint);
+      }
+      // 每 8 格加深一条,方便定位
+      final majorPaint = Paint()
+        ..color = const Color(0x44FFFFFF)
+        ..strokeWidth = 1.0;
+      for (var x = 0; x <= frame.width; x += 8) {
+        final gx = offsetX + cell * x;
+        canvas.drawLine(Offset(gx, offsetY),
+            Offset(gx, offsetY + cell * frame.height), majorPaint);
+      }
+      for (var y = 0; y <= frame.height; y += 8) {
+        final gy = offsetY + cell * y;
+        canvas.drawLine(Offset(offsetX, gy),
+            Offset(offsetX + cell * frame.width, gy), majorPaint);
       }
     }
   }
