@@ -92,12 +92,40 @@ class ControlScreen extends StatelessWidget {
               const SizedBox(height: 14),
               _ConnectionBar(state: state, onToggle: onToggleConnect),
 
-              // 大预览
+              // 预览:限高显示,点击可全屏放大
               const SizedBox(height: 16),
               Glass(
                 radius: 22,
                 padding: const EdgeInsets.all(12),
-                child: LedPanelPreview(frame: state.currentFrame),
+                child: GestureDetector(
+                  onTap: () => showPanelFullscreen(
+                    context,
+                    state.currentFrame,
+                    listenable: state,
+                    liveFrame: () => state.currentFrame,
+                  ),
+                  child: Stack(
+                    children: [
+                      LedPanelPreview(
+                        frame: state.currentFrame,
+                        maxHeight: 210,
+                      ),
+                      Positioned(
+                        right: 6,
+                        bottom: 6,
+                        child: Container(
+                          padding: const EdgeInsets.all(5),
+                          decoration: BoxDecoration(
+                            color: const Color(0x66000000),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.open_in_full_rounded,
+                              size: 13, color: Color(0xCCFFFFFF)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
 
               // 当前模式

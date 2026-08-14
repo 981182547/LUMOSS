@@ -128,21 +128,29 @@ class _PixelEditorScreenState extends State<PixelEditorScreen> {
                         constraints.maxWidth,
                         constraints.maxWidth * h / w,
                       );
-                      return GestureDetector(
-                        behavior: HitTestBehavior.opaque,
-                        onPanStart: (d) {
+                      // 手势处理分两层,解决"画画时页面跟着滚动"的冲突:
+                      //  · Listener 收原始指针事件,不参与手势竞技场,画笔一定跟手;
+                      //  · 外层 GestureDetector 声明纵向/横向拖动但什么都不做,
+                      //    把拖动从父级滚动视图手里"抢"过来,页面就不会滚。
+                      return Listener(
+                        onPointerDown: (e) {
                           _snapshot();
-                          _handleTouch(d.localPosition, size);
+                          _handleTouch(e.localPosition, size);
                         },
-                        onPanUpdate: (d) => _handleTouch(d.localPosition, size),
-                        onTapDown: (d) {
-                          _snapshot();
-                          _handleTouch(d.localPosition, size);
-                        },
-                        child: SizedBox(
-                          width: size.width,
-                          height: size.height,
-                          child: LedPanelPreview(frame: state.currentFrame),
+                        onPointerMove: (e) => _handleTouch(e.localPosition, size),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onVerticalDragStart: (_) {},
+                          onVerticalDragUpdate: (_) {},
+                          onVerticalDragEnd: (_) {},
+                          onHorizontalDragStart: (_) {},
+                          onHorizontalDragUpdate: (_) {},
+                          onHorizontalDragEnd: (_) {},
+                          child: SizedBox(
+                            width: size.width,
+                            height: size.height,
+                            child: LedPanelPreview(frame: state.currentFrame),
+                          ),
                         ),
                       );
                     },

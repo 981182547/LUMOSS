@@ -10,15 +10,25 @@ import '../models/taillight.dart';
 import '../theme.dart';
 
 /// 模拟灯板显示效果:黑底 + 发光灯珠。
+///
+/// [maxHeight] 限制高度,避免大灯板在首页占掉整屏。
+/// [expandable] 为 true 时点击可全屏查看。
 class LedPanelPreview extends StatelessWidget {
   final Frame frame;
+  final double? maxHeight;
+  final bool expandable;
 
-  const LedPanelPreview({super.key, required this.frame});
+  const LedPanelPreview({
+    super.key,
+    required this.frame,
+    this.maxHeight,
+    this.expandable = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final ratio = frame.width / frame.height;
-    return ClipRRect(
+    Widget panel = ClipRRect(
       borderRadius: BorderRadius.circular(14),
       child: Container(
         color: panelBg,
@@ -34,7 +44,110 @@ class LedPanelPreview extends StatelessWidget {
         ),
       ),
     );
+
+    if (maxHeight != null) {
+      panel = Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight!),
+          child: panel,
+        ),
+      );
+    }
+
+    if (!expandable) return panel;
+
+    return Stack(
+      children: [
+        panel,
+        // 放大提示角标
+        Positioned(
+          right: 6,
+          bottom: 6,
+          child: IgnorePointer(
+            child: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: const Color(0x66000000),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.open_in_full_rounded,
+                  size: 13, color: Color(0xCCFFFFFF)),
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => showPanelFullscreen(context, frame),
+            ),
+          ),
+        ),
+      ],
+    );
   }
+}
+
+/// 全屏查看灯板。传 [listenable] 时会跟着状态实时刷新(特效/动画不会卡住)。
+void showPanelFullscreen(
+  BuildContext context,
+  Frame frame, {
+  Listenable? listenable,
+  Frame Function()? liveFrame,
+}) {
+  showDialog(
+    context: context,
+    barrierColor: const Color(0xF2000000),
+    builder: (ctx) {
+      Widget content(Frame f) => Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: LedPanelPreview(frame: f),
+            ),
+          );
+
+      return GestureDetector(
+        onTap: () => Navigator.pop(ctx),
+        child: Stack(
+          children: [
+            if (listenable != null && liveFrame != null)
+              ListenableBuilder(
+                listenable: listenable,
+                builder: (_, _) => content(liveFrame()),
+              )
+            else
+              content(frame),
+            Positioned(
+              top: MediaQuery.of(ctx).padding.top + 12,
+              right: 16,
+              child: GestureDetector(
+                onTap: () => Navigator.pop(ctx),
+                child: Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: const BoxDecoration(
+                    color: Color(0x33FFFFFF),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close_rounded,
+                      size: 20, color: Colors.white),
+                ),
+              ),
+            ),
+            Positioned(
+              bottom: MediaQuery.of(ctx).padding.bottom + 24,
+              left: 0,
+              right: 0,
+              child: const Center(
+                child: Text('点击任意处关闭',
+                    style: TextStyle(fontSize: 12, color: textSecondary)),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 class _PanelPainter extends CustomPainter {

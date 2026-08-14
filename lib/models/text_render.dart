@@ -23,16 +23,24 @@ class TextBitmap {
 /// 不需要在固件里塞字库。
 class TextRender {
   /// 把文字渲染成 height 高的单色位图(宽度自适应)
-  static Future<TextBitmap?> renderText(String text, int height,
-      {bool bold = true}) async {
+  ///
+  /// [fontScale] 字号相对板高的比例,1.0 约等于铺满板高
+  /// [verticalOffset] 垂直偏移像素,负数上移、正数下移
+  static Future<TextBitmap?> renderText(
+    String text,
+    int height, {
+    bool bold = true,
+    double fontScale = 1.0,
+    int verticalOffset = 0,
+  }) async {
     if (text.trim().isEmpty) return null;
 
     final painter = TextPainter(
       text: TextSpan(
         text: text,
         style: TextStyle(
-          // 字号略小于板高,留出上下边距
-          fontSize: height * 0.92,
+          // 0.92 是留出上下边距后铺满板高的字号
+          fontSize: height * 0.92 * fontScale,
           fontWeight: bold ? FontWeight.bold : FontWeight.normal,
           color: const Color(0xFFFFFFFF),
           height: 1.0,
@@ -52,8 +60,8 @@ class TextRender {
       ui.Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
       ui.Paint()..color = const Color(0xFF000000),
     );
-    // 垂直居中
-    final dy = (h - painter.height) / 2;
+    // 垂直居中,再叠加用户设定的偏移
+    final dy = (h - painter.height) / 2 + verticalOffset;
     painter.paint(canvas, Offset(0, dy));
 
     final picture = recorder.endRecording();
@@ -81,6 +89,33 @@ class TextRender {
     for (var y = 0; y < config.height; y++) {
       for (var x = 0; x < config.width; x++) {
         final sx = x + off - config.width;
+        if (sx >= 0 && sx < bmp.width && y < bmp.height) {
+          if (bmp.lumAt(sx, y) > 100) f.set(x, y, color);
+        }
+      }
+    }
+    return f;
+  }
+
+  /// 静止显示:文字不滚动,按对齐方式定格在灯板上。
+  /// 文字比板宽时会被裁掉,可配合缩小字号使用。
+  ///
+  /// [align] -1 左对齐,0 居中,1 右对齐
+  static Frame staticFrame(
+      TextBitmap bmp, DeviceConfig config, int color, int align) {
+    final f = Frame(config.width, config.height);
+    final int startX;
+    if (align < 0) {
+      startX = 0;
+    } else if (align > 0) {
+      startX = config.width - bmp.width;
+    } else {
+      startX = ((config.width - bmp.width) / 2).round();
+    }
+
+    for (var y = 0; y < config.height; y++) {
+      for (var x = 0; x < config.width; x++) {
+        final sx = x - startX;
         if (sx >= 0 && sx < bmp.width && y < bmp.height) {
           if (bmp.lumAt(sx, y) > 100) f.set(x, y, color);
         }
