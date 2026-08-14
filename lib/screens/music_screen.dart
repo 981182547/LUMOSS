@@ -74,10 +74,11 @@ class _MusicScreenState extends State<MusicScreen>
       state.touch();
       setState(() => bands = _analyzer.bands);
 
-      // 音乐必须由手机分析,所以要推帧;限流到约 12fps 以免塞满蓝牙
-      if (state.conn == ConnState.connected && t - _lastSend > 80) {
+      // 只发频谱数据(20 字节),画面由灯板自己渲染,
+      // 所以这里可以跑到 33fps 而不会塞满蓝牙。
+      if (state.conn == ConnState.connected && t - _lastSend > 30) {
         _lastSend = t;
-        state.sendFrameRealtime(f);
+        state.sendSpectrum(_analyzer.bands, _analyzer.volume);
       }
     })..start();
   }
@@ -189,7 +190,8 @@ class _MusicScreenState extends State<MusicScreen>
 
                 const SizedBox(height: 10),
                 const Text(
-                  '音乐由手机麦克风分析,因此需要保持蓝牙连接;画面以约 12fps 推送到灯板。',
+                  '手机负责听音和频谱分析,只把 16 个频段的能量发给灯板(每帧 20 字节),'
+                  '画面由灯板自己渲染,因此比推整帧流畅得多。需要保持本页在前台。',
                   style: TextStyle(
                       fontSize: 11, color: textSecondary, height: 1.4),
                 ),

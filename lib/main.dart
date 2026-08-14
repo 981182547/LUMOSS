@@ -89,9 +89,7 @@ class _HomePageState extends State<HomePage> {
       // 记住连上的灯板,下次自动连回去
       onRemember: state.rememberDevice,
       // 灯板主动上报的状态(心跳 / 当前模式等)
-      onDeviceMessage: (op, payload) {
-        debugPrint('[灯板上报] op=0x${op.toRadixString(16)} $payload');
-      },
+      onDeviceMessage: state.onDeviceMessage,
     );
 
     // 启动时自动连回上次的灯板,省掉每次手动选设备
@@ -188,7 +186,51 @@ class _HomePageState extends State<HomePage> {
         },
         child: Scaffold(
           backgroundColor: appBackground,
-          body: _sub != SubScreen.none ? _buildSub() : _buildMain(),
+          body: Stack(
+            children: [
+              _sub != SubScreen.none ? _buildSub() : _buildMain(),
+              // 大数据上传时的进度浮层:之前传 GIF 要等好几秒却毫无反馈
+              if (state.sendProgress != null)
+                Positioned.fill(
+                  child: Container(
+                    color: const Color(0xB3000000),
+                    child: Center(
+                      child: Container(
+                        width: 220,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: cardSurface,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: glassBorder, width: 0.8),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(state.sendLabel,
+                                style: const TextStyle(
+                                    fontSize: 13, color: textPrimary)),
+                            const SizedBox(height: 14),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: state.sendProgress,
+                                minHeight: 6,
+                                backgroundColor: accentContainer,
+                                valueColor: const AlwaysStoppedAnimation(accent),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text('${((state.sendProgress ?? 0) * 100).round()}%',
+                                style: const TextStyle(
+                                    fontSize: 12, color: textSecondary)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

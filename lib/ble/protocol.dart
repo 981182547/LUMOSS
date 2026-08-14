@@ -28,6 +28,12 @@ class Protocol {
   static const opAnimEnd = 0x09; // 动画结束并播放
   static const opScroll = 0x0A; // 滚动文字位图: 宽, 颜色, 速度 + 位图
   static const opPower = 0x0B; // 1 字节 开/关
+  // 音乐律动:只发频谱,由灯板自己渲染。
+  // 20 字节 vs 整帧 768 字节,省 97% 带宽,帧率不再受蓝牙限制。
+  static const opSpectrum = 0x0C;
+
+  // ---- 灯板 -> App 的上报(Notify) ----
+  static const opStatus = 0x20; // mode, fxId, bright, power, w, h, tailMode
 
   static Uint8List frame(int op, List<int> payload) {
     final len = payload.length;
@@ -95,6 +101,22 @@ class Protocol {
   }
 
   static Uint8List animEnd() => frame(opAnimEnd, const []);
+
+  /// 音乐频谱:16 个频段能量 + 总音量,灯板据此自己渲染
+  static Uint8List spectrum(
+      int style, int palette, int color, int volume, List<int> bands) {
+    final p = Uint8List(6 + 16);
+    p[0] = style & 0xFF;
+    p[1] = palette & 0xFF;
+    p[2] = (color >> 16) & 0xFF;
+    p[3] = (color >> 8) & 0xFF;
+    p[4] = color & 0xFF;
+    p[5] = volume.clamp(0, 255);
+    for (var i = 0; i < 16; i++) {
+      p[6 + i] = i < bands.length ? bands[i].clamp(0, 255) : 0;
+    }
+    return frame(opSpectrum, p);
+  }
 
   /// 滚动文字:App 端把文字(含中文)渲染成 1bit 位图上传,设备端负责滚动
   static Uint8List scroll(

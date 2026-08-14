@@ -237,7 +237,9 @@ class AppState extends ChangeNotifier {
     // 图片/动画/静止由各自界面设置
   }
 
-  bool get isAnimating => mode is ModeEffect || mode is ModeTail;
+  /// 关灯时停止预览动画,让界面和灯板的真实状态一致
+  bool get isAnimating =>
+      powerOn && (mode is ModeEffect || mode is ModeTail);
 
   // ============================================================
   // 发送:小指令恒走蓝牙;大数据可询问后改走 WiFi
@@ -311,7 +313,15 @@ class AppState extends ChangeNotifier {
     }
   }
 
-  void pushPower() => _sendCmd(Protocol.power(powerOn));
+  void pushPower() {
+    _sendCmd(Protocol.power(powerOn));
+    // 关灯时把预览也熄掉,开灯时下一帧渲染会自动恢复
+    if (!powerOn) {
+      final f = Frame(config.width, config.height);
+      currentFrame = f;
+    }
+    notifyListeners();
+  }
 
   void sendConfig() => _sendCmd(Protocol.config(
       config.width, config.height, config.serpentine, config.flipX, config.flipY));
@@ -324,10 +334,32 @@ class AppState extends ChangeNotifier {
     await _sendBulk(Protocol.frame(Protocol.opFrame, frame.toRgbBytes(config)));
   }
 
-  /// 实时推帧(音乐律动用):直接走当前通道,不询问、不改模式,
-  /// 由调用方自己限流,避免塞满蓝牙。
-  void sendFrameRealtime(Frame frame) {
-    _sendCmd(Protocol.frame(Protocol.opFrame, frame.toRgbBytes(config)));
+  /// 音乐律动:只发 16 个频段能量 + 音量(20 字节),灯板自己渲染。
+  /// 比推整帧(768 字节)省 97% 带宽,所以能跑到 30fps 以上。
+  void sendSpectrum(List<double> bands, double volume) {
+    _sendCmd(Protocol.spectrum(
+      musicStyle,
+      effectPalette,
+      effectColor,
+      (volume.clamp(0.0, 1.0) * 255).round(),
+      [for (final b in bands) (b.clamp(0.0, 1.0) * 255).round()],
+    ));
+  }
+
+  // ---- 灯板上报的真实状态(通过 Notify 收到) ----
+  DateTime? deviceLastSeen;
+  int? deviceMode;
+  bool get deviceOnline =>
+      deviceLastSeen != null &&
+      DateTime.now().difference(deviceLastSeen!).inSeconds < 8;
+
+  /// 处理灯板主动上报。目前只有状态包,兼作心跳。
+  void onDeviceMessage(int op, List<int> p) {
+    if (op == Protocol.opStatus && p.length >= 7) {
+      deviceLastSeen = DateTime.now();
+      deviceMode = p[0];
+      notifyListeners();
+    }
   }
 
   /// 效果在设备端跑,只发参数
@@ -353,6 +385,16 @@ class AppState extends ChangeNotifier {
     await _sendBulk(Protocol.scroll(bitmapWidth, height, color, speed, bits));
   }
 
+  // ---- 传输进度(0..1,null 表示空闲),供界面显示进度条 ----
+  double? sendProgress;
+  String sendLabel = '';
+
+  void _setProgress(double? v, [String label = '']) {
+    sendProgress = v;
+    sendLabel = label;
+    notifyListeners();
+  }
+
   /// 上传动画:开始 -> 逐帧 -> 结束播放。整体数据量大。
   Future<void> pushAnimation(List<Uint8List> frames, int delayMs) async {
     mode = const ModeAnimation();
@@ -373,11 +415,17 @@ class AppState extends ChangeNotifier {
     }
     if (link == null) return;
 
-    await link.sendPacket(Protocol.animBegin(frames.length, delayMs));
-    for (var i = 0; i < frames.length; i++) {
-      await link.sendPacket(Protocol.animFrame(i, frames[i]));
+    try {
+      _setProgress(0, '正在上传动画…');
+      await link.sendPacket(Protocol.animBegin(frames.length, delayMs));
+      for (var i = 0; i < frames.length; i++) {
+        await link.sendPacket(Protocol.animFrame(i, frames[i]));
+        _setProgress((i + 1) / frames.length, '正在上传动画 ${i + 1}/${frames.length}');
+      }
+      await link.sendPacket(Protocol.animEnd());
+    } finally {
+      _setProgress(null);
     }
-    await link.sendPacket(Protocol.animEnd());
   }
 
   // ============================================================
