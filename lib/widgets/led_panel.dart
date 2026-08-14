@@ -21,16 +21,55 @@ class LedPanelPreview extends StatelessWidget {
   /// 画网格线,编辑器里数格子用
   final bool showGrid;
 
+  /// 双屏预览:左右各显示一块,右边镜像。中间留出车尾的间隔,
+  /// 让用户看到的就是车屁股上的真实样子。
+  final bool dualMirror;
+
   const LedPanelPreview({
     super.key,
     required this.frame,
     this.maxHeight,
     this.expandable = false,
     this.showGrid = false,
+    this.dualMirror = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    if (dualMirror) return _buildDual(context);
+    return _buildSingle(context);
+  }
+
+  /// 左右两块,右边是左边的镜像
+  Widget _buildDual(BuildContext context) {
+    final mirrored = Frame(frame.width, frame.height);
+    for (var y = 0; y < frame.height; y++) {
+      for (var x = 0; x < frame.width; x++) {
+        mirrored.set(x, y, frame.get(frame.width - 1 - x, y));
+      }
+    }
+    Widget row = Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Flexible(child: LedPanelPreview(frame: frame, showGrid: showGrid)),
+        // 中间是车尾行李厢的位置
+        const SizedBox(width: 18),
+        Flexible(child: LedPanelPreview(frame: mirrored, showGrid: showGrid)),
+      ],
+    );
+    if (maxHeight != null) {
+      row = Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight!),
+          child: row,
+        ),
+      );
+    }
+    return row;
+  }
+
+  Widget _buildSingle(BuildContext context) {
     final ratio = frame.width / frame.height;
     Widget panel = ClipRRect(
       borderRadius: BorderRadius.circular(14),

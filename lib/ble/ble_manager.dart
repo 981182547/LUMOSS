@@ -91,24 +91,35 @@ class BleManager implements LinkTransport {
         (loc.isGranted || loc.isLimited);
   }
 
-  /// 手机蓝牙开关是否打开。
+  /// 取蓝牙适配器的真实状态。
   ///
   /// 不能只看 adapterStateNow:那是缓存值,App 刚启动、状态流还没推过值时是
-  /// unknown,会误判成"未开启"。这里退回到状态流取一次真实值。
-  Future<bool> isAdapterOn() async {
+  /// unknown,会误判。这里退回到状态流取一次真实值。
+  Future<BluetoothAdapterState> adapterState() async {
     try {
-      if (FlutterBluePlus.adapterStateNow == BluetoothAdapterState.on) {
-        return true;
-      }
-      final st = await FlutterBluePlus.adapterState
+      final now = FlutterBluePlus.adapterStateNow;
+      if (now != BluetoothAdapterState.unknown) return now;
+      return await FlutterBluePlus.adapterState
           .firstWhere((s) => s != BluetoothAdapterState.unknown)
-          .timeout(const Duration(seconds: 3));
-      return st == BluetoothAdapterState.on;
+          .timeout(const Duration(seconds: 4));
     } catch (_) {
-      // 读不到就别拦着,让后续扫描去试,真不行会报扫描失败
-      return true;
+      return BluetoothAdapterState.unknown;
     }
   }
+
+  /// 适配器状态的中文说明,直接显示给用户
+  static String describeAdapter(BluetoothAdapterState s) => switch (s) {
+        BluetoothAdapterState.on => '已开启',
+        BluetoothAdapterState.off => '已关闭',
+        BluetoothAdapterState.turningOn => '正在开启',
+        BluetoothAdapterState.turningOff => '正在关闭',
+        BluetoothAdapterState.unauthorized => '未授权',
+        BluetoothAdapterState.unavailable => '不支持',
+        _ => '未知',
+      };
+
+  Future<bool> isAdapterOn() async =>
+      (await adapterState()) == BluetoothAdapterState.on;
 
   Future<bool> requestPermissions() async {
     if (!_needsRuntimePermissions) return true;
@@ -138,12 +149,30 @@ class BleManager implements LinkTransport {
       }
     }
 
-    if (!await isAdapterOn()) {
-      _log('蓝牙未开启,请下拉通知栏打开蓝牙');
+    // iOS 上"权限被拒"会表现为 unauthorized,和"蓝牙关了"完全是两回事,
+    // 提示必须分开,否则用户会一直去开本来就开着的蓝牙开关。
+    final st = await adapterState();
+    if (st == BluetoothAdapterState.unauthorized) {
+      needsSystemSettings = true;
+      _log('蓝牙权限被拒绝,请到系统设置里允许本 App 使用蓝牙');
       return false;
     }
+    if (st == BluetoothAdapterState.unavailable) {
+      _log('这台设备不支持蓝牙');
+      return false;
+    }
+    if (st != BluetoothAdapterState.on) {
+      _log('蓝牙${describeAdapter(st)},请打开蓝牙后重试');
+      return false;
+    }
+    needsSystemSettings = false;
     return true;
   }
+
+  /// 需要用户去系统设置里手动授权(iOS 拒绝过蓝牙权限后无法再次弹窗)
+  bool needsSystemSettings = false;
+
+  Future<void> openSystemSettings() => openAppSettings();
 
   // ---------------- 扫描 ----------------
 

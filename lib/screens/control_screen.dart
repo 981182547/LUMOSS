@@ -67,7 +67,9 @@ class ControlScreen extends StatelessWidget {
                                 fontWeight: FontWeight.w600,
                                 color: textPrimary)),
                         Text(
-                          '${state.config.width} × ${state.config.height} · ${state.config.count} 灯珠',
+                          state.config.panels == 2
+                              ? '${state.config.width}×${state.config.height} 双屏 · ${state.config.totalLeds} 灯珠'
+                              : '${state.config.width} × ${state.config.height} · ${state.config.count} 灯珠',
                           style: const TextStyle(
                               fontSize: 13, color: textSecondary),
                         ),
@@ -108,7 +110,9 @@ class ControlScreen extends StatelessWidget {
                     children: [
                       LedPanelPreview(
                         frame: state.currentFrame,
-                        maxHeight: 210,
+                        maxHeight: 230,
+                        // 双屏时按车尾真实样子显示:左右各一块,右边镜像
+                        dualMirror: state.config.panels == 2,
                       ),
                       Positioned(
                         right: 6,

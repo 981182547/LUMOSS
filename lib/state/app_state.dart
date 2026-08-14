@@ -324,7 +324,14 @@ class AppState extends ChangeNotifier {
   }
 
   void sendConfig() => _sendCmd(Protocol.config(
-      config.width, config.height, config.serpentine, config.flipX, config.flipY));
+        config.width,
+        config.height,
+        config.serpentine,
+        config.flipX,
+        config.flipY,
+        panels: config.panels,
+        mirrorSecond: config.mirrorSecond,
+      ));
 
   /// 整帧像素:数据量大,走大数据通道
   Future<void> pushFrame(Frame frame) async {
@@ -432,11 +439,13 @@ class AppState extends ChangeNotifier {
   // 持久化
   // ============================================================
   DeviceConfig _loadConfig() => DeviceConfig(
-        width: prefs.getInt('w') ?? 16,
-        height: prefs.getInt('h') ?? 16,
+        width: prefs.getInt('w') ?? 20,
+        height: prefs.getInt('h') ?? 40,
         serpentine: prefs.getBool('serp') ?? true,
         flipX: prefs.getBool('fx') ?? true,
         flipY: prefs.getBool('fy') ?? false,
+        panels: prefs.getInt('panels') ?? 2,
+        mirrorSecond: prefs.getBool('mirror2') ?? true,
       );
 
   void _saveConfig(DeviceConfig c) {
@@ -445,6 +454,8 @@ class AppState extends ChangeNotifier {
     prefs.setBool('serp', c.serpentine);
     prefs.setBool('fx', c.flipX);
     prefs.setBool('fy', c.flipY);
+    prefs.setInt('panels', c.panels);
+    prefs.setBool('mirror2', c.mirrorSecond);
   }
 
   void saveWifiSettings(bool enabled, String host, int port) {

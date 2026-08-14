@@ -25,6 +25,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   late bool fx;
   late bool fy;
   late bool wifiOn;
+  late int panels;
+  late bool mirror2;
   late final TextEditingController _hostCtrl;
   late final TextEditingController _portCtrl;
 
@@ -36,6 +38,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     serp = state.config.serpentine;
     fx = state.config.flipX;
     fy = state.config.flipY;
+    panels = state.config.panels;
+    mirror2 = state.config.mirrorSecond;
     wifiOn = state.wifiEnabled;
     _hostCtrl = TextEditingController(text: state.wifiHost);
     _portCtrl = TextEditingController(text: '${state.wifiPort}');
@@ -70,7 +74,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final probe = _buildProbe();
-    final amps = (w * h * 0.06).toStringAsFixed(1);
+    final amps = (w * h * panels * 0.06).toStringAsFixed(1);
     const presetSizes = [
       [8, 8], [16, 16], [32, 8], [32, 16],
       [32, 32], [8, 32], [64, 8], [64, 16],
@@ -92,7 +96,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Glass(
                   radius: 20,
                   padding: const EdgeInsets.all(10),
-                  child: LedPanelPreview(frame: probe),
+                  child: LedPanelPreview(
+                    frame: probe,
+                    maxHeight: 260,
+                    dualMirror: panels == 2,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 const Text(
@@ -128,19 +136,74 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         onChanged: (v) => setState(() => h = v),
                       ),
                       const SizedBox(height: 4),
-                      Text('共 ${w * h} 颗灯珠 · 满白约 $amps A',
-                          style: const TextStyle(
-                              fontSize: 11, color: textSecondary)),
+                      Text(
+                        panels == 2
+                            ? '单屏 ${w * h} 颗 · 两屏共 ${w * h * 2} 颗 · 满白约 $amps A'
+                            : '共 ${w * h} 颗灯珠 · 满白约 $amps A',
+                        style: const TextStyle(
+                            fontSize: 11, color: textSecondary),
+                      ),
                       if (w * h > 1024)
                         const Padding(
                           padding: EdgeInsets.only(top: 4),
                           child: Text(
-                            '超过 1024 颗,固件默认的 MAX_LEDS 装不下,需要同步调大',
+                            '单屏超过 1024 颗,超出固件的 MAX_PANEL_LEDS,需要同步调大',
                             style: TextStyle(fontSize: 11, color: warnAmber),
                           ),
                         ),
+                      if (w * h * panels * 0.06 > 20)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            '满白电流约 $amps A,务必用足够功率的独立电源,'
+                            '并把亮度控制在 50% 以下',
+                            style: const TextStyle(
+                                fontSize: 11, color: warnAmber, height: 1.4),
+                          ),
+                        ),
 
-                      const SizedBox(height: 12),
+                      // ---- 屏数 ----
+                      const SizedBox(height: 14),
+                      const Text('屏数',
+                          style:
+                              TextStyle(fontSize: 12, color: textSecondary)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ChipTag(
+                              text: '单屏',
+                              selected: panels == 1,
+                              onTap: () => setState(() => panels = 1),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ChipTag(
+                              text: '双屏(左右尾灯)',
+                              selected: panels == 2,
+                              onTap: () => setState(() => panels = 2),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (panels == 2) ...[
+                        _SwitchRow(
+                          title: '第二块左右镜像',
+                          desc: '车尾左右对称。开启后 App 只需下发一块屏的画面,'
+                              '另一块由灯板镜像生成,传输量减半',
+                          value: mirror2,
+                          onChanged: (v) => setState(() => mirror2 = v),
+                        ),
+                        Text(
+                          '两块屏串在同一条数据线上:第一块占 0~${w * h - 1} 号,'
+                          '第二块占 ${w * h}~${w * h * 2 - 1} 号,共 ${w * h * 2} 颗',
+                          style: const TextStyle(
+                              fontSize: 11, color: textSecondary, height: 1.4),
+                        ),
+                      ],
+
+                      const SizedBox(height: 14),
                       const Text('常用尺寸',
                           style:
                               TextStyle(fontSize: 12, color: textSecondary)),
@@ -256,6 +319,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       serpentine: serp,
                       flipX: fx,
                       flipY: fy,
+                      panels: panels,
+                      mirrorSecond: mirror2,
                     ));
                     state.saveWifiSettings(
                       wifiOn,

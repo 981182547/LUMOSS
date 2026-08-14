@@ -54,13 +54,28 @@ class Protocol {
 
   static Uint8List power(bool on) => frame(opPower, [on ? 1 : 0]);
 
+  /// 灯板配置。[panels] 为屏数,[mirrorSecond] 表示第二块左右镜像。
+  /// 旧固件只读前 3 个字节,多出来的会被忽略,兼容没问题。
   static Uint8List config(
-      int w, int h, bool serpentine, bool flipX, bool flipY) {
+    int w,
+    int h,
+    bool serpentine,
+    bool flipX,
+    bool flipY, {
+    int panels = 1,
+    bool mirrorSecond = true,
+  }) {
     var flags = 0;
     if (serpentine) flags |= 0x01;
     if (flipX) flags |= 0x02;
     if (flipY) flags |= 0x04;
-    return frame(opConfig, [w & 0xFF, h & 0xFF, flags & 0xFF]);
+    if (mirrorSecond) flags |= 0x08;
+    return frame(opConfig, [
+      w & 0xFF,
+      h & 0xFF,
+      flags & 0xFF,
+      panels & 0xFF,
+    ]);
   }
 
   /// 效果在设备端渲染,只发参数

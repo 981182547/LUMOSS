@@ -54,15 +54,29 @@ class DeviceConfig {
   final bool flipX; // 信号从右上进,默认翻转 X
   final bool flipY;
 
+  /// 屏数。车尾灯左右各一块时填 2,两块串在同一条数据线上:
+  /// 第一块占 0..count-1,第二块占 count..2*count-1。
+  final int panels;
+
+  /// 第二块屏是否左右镜像。车尾左右对称时开启,
+  /// App 只需下发一块屏的画面,另一块由灯板镜像生成,省一半带宽。
+  final bool mirrorSecond;
+
   const DeviceConfig({
     this.width = 16,
     this.height = 16,
     this.serpentine = true,
     this.flipX = true,
     this.flipY = false,
+    this.panels = 1,
+    this.mirrorSecond = true,
   });
 
+  /// 单块屏的灯珠数(也是 App 需要下发的像素数)
   int get count => width * height;
+
+  /// 实际接在灯带上的总灯珠数
+  int get totalLeds => count * panels;
 
   /// 逻辑坐标 (x,y) -> 灯带物理序号
   int indexOf(int x, int y) {
@@ -83,6 +97,8 @@ class DeviceConfig {
     bool? serpentine,
     bool? flipX,
     bool? flipY,
+    int? panels,
+    bool? mirrorSecond,
   }) =>
       DeviceConfig(
         width: width ?? this.width,
@@ -90,6 +106,8 @@ class DeviceConfig {
         serpentine: serpentine ?? this.serpentine,
         flipX: flipX ?? this.flipX,
         flipY: flipY ?? this.flipY,
+        panels: panels ?? this.panels,
+        mirrorSecond: mirrorSecond ?? this.mirrorSecond,
       );
 }
 
