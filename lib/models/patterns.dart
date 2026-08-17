@@ -2,11 +2,15 @@ import 'dart:math' as math;
 
 import 'led_matrix.dart';
 import 'pattern_paint.dart';
+import 'patterns_premium.dart';
 import 'text_render.dart';
 
-enum PatternCat { drive, face, cute, car, festival }
+enum PatternCat { premium, warm, animal, drive, face, cute, car, festival }
 
 const patternCatNames = {
+  PatternCat.premium: '高级',
+  PatternCat.warm: '温馨',
+  PatternCat.animal: '动物',
   PatternCat.drive: '行车沟通',
   PatternCat.face: '表情',
   PatternCat.cute: '可爱',
@@ -52,6 +56,61 @@ class PatternDef {
 }
 
 class Patterns {
+
+  // ==========================================================
+  // 高级 —— 慢速、渐变、留白,克制才显贵
+  // ==========================================================
+  static const premium = <PatternDef>[
+    PatternDef(id: 'p_silk', name: '流光', cat: PatternCat.premium,
+        frames: 40, frameDelayMs: 55, draw: pxSilk),
+    PatternDef(id: 'p_breath', name: '呼吸', cat: PatternCat.premium,
+        frames: 60, frameDelayMs: 60, draw: pxBreath),
+    PatternDef(id: 'p_bubble', name: '气泡', cat: PatternCat.premium,
+        frames: 60, frameDelayMs: 65, draw: pxBubbles),
+    PatternDef(id: 'p_ripple', name: '涟漪', cat: PatternCat.premium,
+        frames: 50, frameDelayMs: 60, draw: pxRipple),
+    PatternDef(id: 'p_startrail', name: '星轨', cat: PatternCat.premium,
+        frames: 80, frameDelayMs: 55, draw: pxStarTrail),
+    PatternDef(id: 'p_ink', name: '水墨', cat: PatternCat.premium,
+        frames: 60, frameDelayMs: 65, draw: pxInk),
+  ];
+
+  // ==========================================================
+  // 温馨 —— 暖色、柔和,让后车的人心里一暖
+  // ==========================================================
+  static const warm = <PatternDef>[
+    PatternDef(id: 'w_firefly', name: '萤火虫', cat: PatternCat.warm,
+        frames: 70, frameDelayMs: 60, draw: wmFirefly),
+    PatternDef(id: 'w_sunset', name: '暖阳', cat: PatternCat.warm,
+        frames: 60, frameDelayMs: 70, draw: wmSunset),
+    PatternDef(id: 'w_petals', name: '花瓣', cat: PatternCat.warm,
+        frames: 80, frameDelayMs: 60, draw: wmPetals),
+    PatternDef(id: 'w_candle', name: '烛光', cat: PatternCat.warm,
+        frames: 40, frameDelayMs: 70, draw: wmCandle),
+    PatternDef(id: 'w_balloon', name: '气球', cat: PatternCat.warm,
+        frames: 90, frameDelayMs: 55, draw: wmBalloons),
+    PatternDef(id: 'w_window', name: '雪夜窗', cat: PatternCat.warm,
+        frames: 80, frameDelayMs: 65, draw: wmWinterWindow),
+  ];
+
+  // ==========================================================
+  // 动物 —— 按 20x40 竖屏构图
+  // ==========================================================
+  static const animal = <PatternDef>[
+    PatternDef(id: 'a_jelly', name: '水母', cat: PatternCat.animal,
+        frames: 48, frameDelayMs: 60, draw: anJellyfish),
+    PatternDef(id: 'a_butterfly', name: '蝴蝶', cat: PatternCat.animal,
+        frames: 24, frameDelayMs: 70, draw: anButterfly),
+    PatternDef(id: 'a_fish', name: '小鱼', cat: PatternCat.animal,
+        frames: 60, frameDelayMs: 60, draw: anFish),
+    PatternDef(id: 'a_cat', name: '猫咪', cat: PatternCat.animal,
+        frames: 60, frameDelayMs: 70, draw: anCat),
+    PatternDef(id: 'a_whale', name: '鲸鱼', cat: PatternCat.animal,
+        frames: 70, frameDelayMs: 65, draw: anWhale),
+    PatternDef(id: 'a_bird', name: '小鸟', cat: PatternCat.animal,
+        frames: 20, frameDelayMs: 70, draw: anBird),
+  ];
+
   // ==========================================================
   // A. 行车沟通 —— 竖排文字为主,20 列宽刚好放下两个字
   // ==========================================================
@@ -217,6 +276,9 @@ class Patterns {
   ];
 
   static List<PatternDef> get all => [
+        ...premium,
+        ...warm,
+        ...animal,
         ...drive,
         ...face,
         ...cute,

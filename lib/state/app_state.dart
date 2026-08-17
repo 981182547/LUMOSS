@@ -392,12 +392,19 @@ class AppState extends ChangeNotifier {
       return;
     }
 
+    // 灯板最多存 32 帧。高级/温馨这类动画为了顺滑做到了 40~90 帧,
+    // 超了会被固件直接拒收,所以均匀抽帧并把帧间隔按比例拉长,
+    // 播放总时长和节奏保持不变,只是稍微没那么顺滑。
+    const maxDeviceFrames = 32;
+    final step = (def.frames / maxDeviceFrames).ceil();
+    final delay = def.frameDelayMs * step;
+
     final frames = <Uint8List>[];
-    for (var i = 0; i < def.frames; i++) {
+    for (var i = 0; i < def.frames; i += step) {
       final f = await Patterns.render(def, config, i, effectColor);
       frames.add(f.toRgbBytes(config));
     }
-    await pushAnimation(frames, def.frameDelayMs);
+    await pushAnimation(frames, delay);
   }
 
   /// 音乐律动:只发 16 个频段能量 + 音量(20 字节),灯板自己渲染。

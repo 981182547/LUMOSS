@@ -104,6 +104,53 @@ class Painter {
     }
   }
 
+  /// 叠加混色。多个柔光重叠时用加法混合,才不会互相盖掉、显得脏。
+  void add(int x, int y, int c, double amount) {
+    if (x < 0 || y < 0 || x >= w || y >= h) return;
+    final old = f.get(x, y);
+    final r = (((old >> 16) & 0xFF) + ((c >> 16) & 0xFF) * amount).round();
+    final g = (((old >> 8) & 0xFF) + ((c >> 8) & 0xFF) * amount).round();
+    final b = ((old & 0xFF) + (c & 0xFF) * amount).round();
+    f.set(x, y, rgb(r, g, b));
+  }
+
+  /// 柔光点:中心亮、向外平滑衰减。
+  /// 精美感基本都靠它 —— 硬边的实心点在点阵屏上会显得很廉价。
+  /// [nr] 相对短边的半径,[falloff] 越大边缘收得越急
+  void glow(double ncx, double ncy, double nr, int c,
+      {double intensity = 1.0, double falloff = 2.0}) {
+    final short = math.min(w, h);
+    final r = nr * short;
+    if (r <= 0) return;
+    final cx = _px(ncx).toDouble(), cy = _py(ncy).toDouble();
+    final x0 = (cx - r - 1).floor(), x1 = (cx + r + 1).ceil();
+    final y0 = (cy - r - 1).floor(), y1 = (cy + r + 1).ceil();
+    for (var y = y0; y <= y1; y++) {
+      for (var x = x0; x <= x1; x++) {
+        final d = math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy));
+        if (d > r) continue;
+        final t = 1.0 - d / r;
+        add(x, y, c, math.pow(t, falloff).toDouble() * intensity);
+      }
+    }
+  }
+
+  /// 竖向渐变填充,用于天空、水体这类背景
+  void vGradient(int top, int bottom, {double from = 0, double to = 1}) {
+    final y0 = _py(from), y1 = _py(to);
+    for (var y = y0; y <= y1; y++) {
+      final t = (y1 == y0) ? 0.0 : (y - y0) / (y1 - y0);
+      final c = rgb(
+        (((top >> 16) & 0xFF) * (1 - t) + ((bottom >> 16) & 0xFF) * t).round(),
+        (((top >> 8) & 0xFF) * (1 - t) + ((bottom >> 8) & 0xFF) * t).round(),
+        ((top & 0xFF) * (1 - t) + (bottom & 0xFF) * t).round(),
+      );
+      for (var x = 0; x < w; x++) {
+        f.set(x, y, c);
+      }
+    }
+  }
+
   /// 心形(经典参数方程,填充)
   void heart(double ncx, double ncy, double scale, int c) {
     final short = math.min(w, h) * scale;
