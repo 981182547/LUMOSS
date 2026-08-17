@@ -8,6 +8,7 @@ import 'screens/control_screen.dart';
 import 'screens/create_screen.dart';
 import 'screens/effects_screen.dart';
 import 'screens/music_screen.dart';
+import 'screens/patterns_screen.dart';
 import 'screens/pixel_editor_screen.dart';
 import 'screens/scenes_screen.dart';
 import 'screens/send_image_screen.dart';
@@ -47,7 +48,7 @@ class WeidengApp extends StatelessWidget {
 }
 
 /// 从 Tab 里推出去的二级页面
-enum SubScreen { none, image, effects, animation, editor, text, music, settings }
+enum SubScreen { none, image, effects, animation, editor, text, music, settings, patterns }
 
 class HomePage extends StatefulWidget {
   final AppState state;
@@ -246,6 +247,7 @@ class _HomePageState extends State<HomePage> {
       SubScreen.image => SendImageScreen(state: state, onBack: back),
       SubScreen.animation => AnimationScreen(state: state, onBack: back),
       SubScreen.music => MusicScreen(state: state, onBack: back),
+      SubScreen.patterns => PatternsScreen(state: state, onBack: back),
       SubScreen.none => const SizedBox(),
     };
   }
@@ -271,6 +273,7 @@ class _HomePageState extends State<HomePage> {
             onOpenImage: () => setState(() => _sub = SubScreen.image),
             onOpenAnimation: () => setState(() => _sub = SubScreen.animation),
             onOpenText: () => setState(() => _sub = SubScreen.text),
+            onOpenPatterns: () => setState(() => _sub = SubScreen.patterns),
           ),
         AppTab.car => TaillightScreen(state: state),
       },

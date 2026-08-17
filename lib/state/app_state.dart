@@ -9,6 +9,7 @@ import '../ble/protocol.dart';
 import '../ble/wifi_manager.dart';
 import '../models/effects.dart';
 import '../models/led_matrix.dart';
+import '../models/patterns.dart';
 import '../models/preset.dart';
 import '../models/taillight.dart';
 
@@ -339,6 +340,30 @@ class AppState extends ChangeNotifier {
     currentFrame = frame;
     notifyListeners();
     await _sendBulk(Protocol.frame(Protocol.opFrame, frame.toRgbBytes(config)));
+  }
+
+  /// 发送图案。静态图当整帧发,动图走动画上传通道。
+  ///
+  /// 关键:文字、箭头这类左右不对称的内容必须让第二块屏【复制】而不是镜像,
+  /// 否则右屏会翻转成反的、字都读不了。
+  Future<void> pushPattern(PatternDef def) async {
+    if (config.panels >= 2) {
+      _sendCmd(Protocol.panelMode(
+          def.symmetric ? Protocol.panelFollowConfig : Protocol.panelCopy));
+    }
+
+    if (!def.animated) {
+      final f = await Patterns.render(def, config, 0, effectColor);
+      await pushFrame(f);
+      return;
+    }
+
+    final frames = <Uint8List>[];
+    for (var i = 0; i < def.frames; i++) {
+      final f = await Patterns.render(def, config, i, effectColor);
+      frames.add(f.toRgbBytes(config));
+    }
+    await pushAnimation(frames, def.frameDelayMs);
   }
 
   /// 音乐律动:只发 16 个频段能量 + 音量(20 字节),灯板自己渲染。

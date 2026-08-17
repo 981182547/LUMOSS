@@ -31,6 +31,12 @@ class Protocol {
   // 音乐律动:只发频谱,由灯板自己渲染。
   // 20 字节 vs 整帧 768 字节,省 97% 带宽,帧率不再受蓝牙限制。
   static const opSpectrum = 0x0C;
+  // 临时指定第二块屏怎么显示:0=复制 1=镜像 2=跟随全局设置。
+  // 文字类内容必须用"复制",否则右屏会左右翻转成反的。
+  static const opPanelMode = 0x0E;
+  static const panelCopy = 0;
+  static const panelMirror = 1;
+  static const panelFollowConfig = 2;
 
   // ---- 灯板 -> App 的上报(Notify) ----
   static const opStatus = 0x20; // mode, fxId, bright, power, w, h, tailMode
@@ -53,6 +59,9 @@ class Protocol {
       frame(opBright, [b.clamp(0, 255)]);
 
   static Uint8List power(bool on) => frame(opPower, [on ? 1 : 0]);
+
+  /// 指定第二块屏的显示方式。发内容之前调用。
+  static Uint8List panelMode(int mode) => frame(opPanelMode, [mode & 0xFF]);
 
   /// 灯板配置。[panels] 为屏数,[mirrorSecond] 表示第二块左右镜像。
   /// 旧固件只读前 3 个字节,多出来的会被忽略,兼容没问题。

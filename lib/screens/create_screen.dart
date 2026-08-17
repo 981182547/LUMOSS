@@ -13,6 +13,7 @@ class CreateScreen extends StatelessWidget {
   final VoidCallback onOpenImage;
   final VoidCallback onOpenAnimation;
   final VoidCallback onOpenText;
+  final VoidCallback onOpenPatterns;
 
   const CreateScreen({
     super.key,
@@ -21,6 +22,7 @@ class CreateScreen extends StatelessWidget {
     required this.onOpenImage,
     required this.onOpenAnimation,
     required this.onOpenText,
+    required this.onOpenPatterns,
   });
 
   @override
@@ -51,10 +53,19 @@ class CreateScreen extends StatelessWidget {
 
               const SizedBox(height: 18),
               _BigTool(
+                icon: Icons.auto_awesome_rounded,
+                title: '图案库',
+                desc: '36 个现成图案:行车沟通 · 表情 · 可爱 · 车主题 · 节日',
+                highlight: true,
+                onTap: onOpenPatterns,
+              ),
+
+              const SizedBox(height: 12),
+              _BigTool(
                 icon: Icons.brush_rounded,
                 title: '像素编辑器',
-                desc: '在灯板上逐点手绘,画笔 · 橡皮 · 填充 · 撤销',
-                highlight: true,
+                desc: '逐点手绘,画笔 · 橡皮 · 填充 · 取色 · 对称 · 撤销重做',
+                highlight: false,
                 onTap: onOpenEditor,
               ),
 
