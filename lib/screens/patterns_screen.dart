@@ -8,6 +8,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/led_panel.dart';
+import '../widgets/toast.dart';
 
 /// 图案库:分类浏览 + 实时预览 + 一键发送
 class PatternsScreen extends StatefulWidget {
@@ -186,8 +187,12 @@ class _PatternsScreenState extends State<PatternsScreen> {
                       ? (sel == null ? '先选一个图案' : '发送到灯板')
                       : '未连接 · 仅预览',
                   enabled: sel != null && state.conn == ConnState.connected,
-                  onTap: () {
-                    if (sel != null) state.pushPattern(sel);
+                  onTap: () async {
+                    if (sel == null) return;
+                    await state.pushPattern(sel);
+                    if (context.mounted) {
+                      Toast.success(context, '已发送「${sel.name}」到灯板');
+                    }
                   },
                 ),
                 const SizedBox(height: 20),

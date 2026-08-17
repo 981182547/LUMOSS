@@ -6,6 +6,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/led_panel.dart';
+import '../widgets/toast.dart';
 
 enum Tool { pen, erase, fill, pick }
 
@@ -371,10 +372,11 @@ class _PixelEditorScreenState extends State<PixelEditorScreen> {
                       ? '发送到灯板'
                       : '未连接 · 仅预览',
                   enabled: state.conn == ConnState.connected,
-                  onTap: () {
+                  onTap: () async {
                     final f = Frame(w, h);
                     f.pixels.setRange(0, canvas.pixels.length, canvas.pixels);
-                    state.pushFrame(f);
+                    await state.pushFrame(f);
+                    if (context.mounted) Toast.success(context, '画面已发送到灯板');
                   },
                 ),
                 const SizedBox(height: 20),

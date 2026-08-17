@@ -108,6 +108,15 @@ class AppState extends ChangeNotifier {
   BleManager? ble;
   WifiManager? wifi;
 
+  /// 是否已经走过首次引导
+  bool onboarded = false;
+
+  void markOnboarded() {
+    onboarded = true;
+    prefs.setBool('onboarded', true);
+    notifyListeners();
+  }
+
   /// 上次连接的灯板 ID,下次打开自动连回去
   String? lastDeviceId;
 
@@ -136,6 +145,7 @@ class AppState extends ChangeNotifier {
     final s = AppState(prefs);
     s._config = s._loadConfig();
     s.brightness = prefs.getDouble('bright') ?? 0.6;
+    s.onboarded = prefs.getBool('onboarded') ?? false;
     s.lastDeviceId = prefs.getString('last_device');
     s.wifiEnabled = prefs.getBool('wifi_enabled') ?? false;
     s.wifiHost = prefs.getString('wifi_host') ?? '192.168.4.1';
@@ -191,8 +201,10 @@ class AppState extends ChangeNotifier {
         pushTaillight();
         break;
       default:
+        // 场景可能是在别的灯板尺寸下存的,缩放到当前尺寸再下发,
+        // 否则只会填在左上角一小块
         final f = p.toFrame();
-        if (f != null) pushFrame(f);
+        if (f != null) pushFrame(f.scaleTo(config.width, config.height));
     }
   }
 

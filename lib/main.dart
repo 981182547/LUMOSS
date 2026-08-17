@@ -8,6 +8,7 @@ import 'screens/control_screen.dart';
 import 'screens/create_screen.dart';
 import 'screens/effects_screen.dart';
 import 'screens/music_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'screens/patterns_screen.dart';
 import 'screens/pixel_editor_screen.dart';
 import 'screens/scenes_screen.dart';
@@ -189,7 +190,14 @@ class _HomePageState extends State<HomePage> {
           backgroundColor: appBackground,
           body: Stack(
             children: [
-              _sub != SubScreen.none ? _buildSub() : _buildMain(),
+              // 第一次打开先走引导:连接 -> 设尺寸 -> 校验方向
+              if (!state.onboarded)
+                OnboardingScreen(
+                  state: state,
+                  onDone: state.markOnboarded,
+                )
+              else
+                _sub != SubScreen.none ? _buildSub() : _buildMain(),
               // 大数据上传时的进度浮层:之前传 GIF 要等好几秒却毫无反馈
               if (state.sendProgress != null)
                 Positioned.fill(

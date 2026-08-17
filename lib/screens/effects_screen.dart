@@ -5,6 +5,7 @@ import '../state/app_state.dart';
 import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/led_panel.dart';
+import '../widgets/toast.dart';
 
 class EffectsScreen extends StatefulWidget {
   final AppState state;
@@ -157,7 +158,10 @@ class _EffectsScreenState extends State<EffectsScreen> {
                       ? '应用到灯板'
                       : '未连接 · 仅预览',
                   enabled: state.conn == ConnState.connected,
-                  onTap: state.pushEffect,
+                  onTap: () {
+                    state.pushEffect();
+                    Toast.success(context, '已应用特效');
+                  },
                 ),
 
                 const SizedBox(height: 10),

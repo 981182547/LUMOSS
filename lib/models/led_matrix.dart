@@ -137,6 +137,23 @@ class Frame {
     return f;
   }
 
+  /// 缩放到指定尺寸(最近邻)。
+  ///
+  /// 点阵画面本来就是一格一色,用最近邻能保持色块干脆,
+  /// 双线性反而会糊掉边缘。尺寸一致时直接返回自身,不做无谓拷贝。
+  Frame scaleTo(int newW, int newH) {
+    if (newW == width && newH == height) return this;
+    final out = Frame(newW, newH);
+    for (var y = 0; y < newH; y++) {
+      final sy = (y * height / newH).floor().clamp(0, height - 1);
+      for (var x = 0; x < newW; x++) {
+        final sx = (x * width / newW).floor().clamp(0, width - 1);
+        out.set(x, y, get(sx, sy));
+      }
+    }
+    return out;
+  }
+
   /// 按灯带物理顺序生成 RGB 字节流(每颗 3 字节 R,G,B),要发给 ESP32 的数据。
   Uint8List toRgbBytes(DeviceConfig config) {
     final out = Uint8List(config.count * 3);

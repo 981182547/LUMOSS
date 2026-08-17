@@ -6,6 +6,7 @@ import '../theme.dart';
 import '../widgets/common.dart';
 import '../widgets/led_panel.dart';
 import '../widgets/main_scaffold.dart';
+import '../widgets/toast.dart';
 
 /// 车灯 Tab。onBack 为 null 时作为 Tab 页显示(无返回箭头、底部留出底栏空间)
 class TaillightScreen extends StatefulWidget {
@@ -159,7 +160,10 @@ class _TaillightScreenState extends State<TaillightScreen> {
                       ? '应用到灯板'
                       : '未连接 · 仅预览',
                   enabled: state.conn == ConnState.connected,
-                  onTap: state.pushTaillight,
+                  onTap: () {
+                    state.pushTaillight();
+                    Toast.success(context, '已应用车灯模式');
+                  },
                 ),
 
                 const SizedBox(height: 14),
