@@ -257,6 +257,23 @@ class AppState extends ChangeNotifier {
     _cmdLink?.sendPacket(msg);
   }
 
+  // 双屏时第二块屏的显示方式。这是灯板上的一个持久状态,
+  // 发完"复制"的内容后如果不改回来,后面的特效、转向灯都会跟着用复制,
+  // 流水转向就会变成两边同向而不是对称往外流。所以每类内容发送前都要显式设定。
+  int _lastPanelMode = -1;
+
+  void _setPanelMode(int mode) {
+    if (config.panels < 2) return;
+    if (mode == _lastPanelMode) return; // 没变就不必重复发
+    _lastPanelMode = mode;
+    _sendCmd(Protocol.panelMode(mode));
+  }
+
+  /// 左右对称的内容(特效、尾灯、图片)跟随全局设置;
+  /// 文字这类有左右之分的必须复制,否则右屏是反的。
+  void _panelModeFor({required bool symmetric}) => _setPanelMode(
+      symmetric ? Protocol.panelFollowConfig : Protocol.panelCopy);
+
   /// 大数据通道:仅在用户开启 WiFi 传输后,才在超过阈值时询问是否改用 WiFi。
   /// 未开启就安静地走蓝牙。
   Future<void> _sendBulk(Uint8List msg) async {
@@ -324,7 +341,14 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  void sendConfig() => _sendCmd(Protocol.config(
+  void sendConfig() {
+    // 灯板可能刚重启,它那边的 panelMode 已回到默认值。
+    // 清掉本地记录,下次发内容时会重新下发一次,避免两边不同步。
+    _lastPanelMode = -1;
+    _sendConfigPacket();
+  }
+
+  void _sendConfigPacket() => _sendCmd(Protocol.config(
         config.width,
         config.height,
         config.serpentine,
@@ -336,6 +360,7 @@ class AppState extends ChangeNotifier {
 
   /// 整帧像素:数据量大,走大数据通道
   Future<void> pushFrame(Frame frame) async {
+    _panelModeFor(symmetric: true);
     mode = const ModePicture();
     currentFrame = frame;
     notifyListeners();
@@ -347,10 +372,7 @@ class AppState extends ChangeNotifier {
   /// 关键:文字、箭头这类左右不对称的内容必须让第二块屏【复制】而不是镜像,
   /// 否则右屏会翻转成反的、字都读不了。
   Future<void> pushPattern(PatternDef def) async {
-    if (config.panels >= 2) {
-      _sendCmd(Protocol.panelMode(
-          def.symmetric ? Protocol.panelFollowConfig : Protocol.panelCopy));
-    }
+    _panelModeFor(symmetric: def.symmetric);
 
     if (!def.animated) {
       final f = await Patterns.render(def, config, 0, effectColor);
@@ -396,6 +418,7 @@ class AppState extends ChangeNotifier {
 
   /// 效果在设备端跑,只发参数
   void pushEffect() {
+    _panelModeFor(symmetric: true);
     mode = ModeEffect(effectId);
     _sendCmd(Protocol.effect(
         effectId, effectSpeed, effectIntensity, effectColor, effectPalette));
@@ -404,6 +427,7 @@ class AppState extends ChangeNotifier {
 
   /// 尾灯模式常驻设备端运行
   void pushTaillight() {
+    _panelModeFor(symmetric: true);
     mode = ModeTail(tailMode);
     _sendCmd(Protocol.taillight(tailMode, tailStyle, effectColor, tailSpeed));
     notifyListeners();
@@ -412,6 +436,7 @@ class AppState extends ChangeNotifier {
   /// 滚动文字位图:数据量较大
   Future<void> pushScrollText(
       int bitmapWidth, int height, int color, int speed, List<int> bits) async {
+    _panelModeFor(symmetric: false); // 文字镜像后是反的,必须复制
     mode = const ModeScroll();
     notifyListeners();
     await _sendBulk(Protocol.scroll(bitmapWidth, height, color, speed, bits));

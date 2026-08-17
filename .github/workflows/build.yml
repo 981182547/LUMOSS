@@ -1,0 +1,104 @@
+# ============================================================
+# 同时构建 Android APK 和 iOS(未签名)IPA
+#
+# 用法:
+#   1. 推送到 main 分支自动触发;
+#   2. 也可在 Actions 页面 → 选本工作流 → Run workflow 手动触发。
+#   3. 跑完在该次运行页面底部 Artifacts 下载:
+#        LUMOSYNC-android  —— APK,直接装安卓手机
+#        LUMOSYNC-ios      —— 未签名 IPA,用 Sideloadly 自签装 iPhone
+#
+# 两个任务并行跑,安卓大约 5 分钟,iOS 大约 5~8 分钟。
+# ============================================================
+
+name: 构建 Android + iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # ---------------- Android ----------------
+  android:
+    name: 构建 Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 拉取依赖
+        run: flutter pub get
+
+      - name: 静态检查
+        run: flutter analyze
+
+      # 按 ABI 拆分:每个包比通用包小很多,装机更省空间
+      - name: 编译 APK
+        run: flutter build apk --release --split-per-abi
+
+      # 再出一个通用包,不确定手机架构时用这个
+      - name: 编译通用 APK
+        run: flutter build apk --release
+
+      - name: 列出产物
+        run: ls -lh build/app/outputs/flutter-apk/
+
+      - name: 上传 APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUMOSYNC-android
+          path: build/app/outputs/flutter-apk/*.apk
+          retention-days: 30
+
+  # ---------------- iOS ----------------
+  ios:
+    name: 构建 iOS IPA(未签名)
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: 拉取代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 拉取依赖
+        run: flutter pub get
+
+      - name: 编译 iOS(不签名)
+        run: flutter build ios --release --no-codesign
+
+      - name: 打包成 .ipa
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          cp -r build/ios/iphoneos/Runner.app build/ios/ipa/Payload/
+          cd build/ios/ipa
+          zip -r -q LUMOSYNC-unsigned.ipa Payload
+          rm -rf Payload
+          ls -lh LUMOSYNC-unsigned.ipa
+
+      - name: 上传 IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: LUMOSYNC-ios
+          path: build/ios/ipa/*.ipa
+          retention-days: 30

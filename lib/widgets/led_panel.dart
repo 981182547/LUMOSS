@@ -375,15 +375,23 @@ class _PreviewTickerState extends State<PreviewTicker>
     with SingleTickerProviderStateMixin {
   Ticker? _ticker;
   late DateTime _start;
+  int _lastTick = -1;
+
+  // 限到 ~30fps。每一帧都会触发全局状态通知、进而重建整棵界面树
+  // (场景页十几个动画缩略图也在里面),跑满 60~120fps 纯属浪费;
+  // 灯板预览 30fps 看不出区别。
+  static const _minIntervalMs = 33;
 
   @override
   void initState() {
     super.initState();
     _start = DateTime.now();
     _ticker = createTicker((_) {
-      if (widget.active) {
-        widget.onTick(DateTime.now().difference(_start).inMilliseconds);
-      }
+      if (!widget.active) return;
+      final t = DateTime.now().difference(_start).inMilliseconds;
+      if (_lastTick >= 0 && t - _lastTick < _minIntervalMs) return;
+      _lastTick = t;
+      widget.onTick(t);
     })
       ..start();
   }

@@ -98,10 +98,30 @@ class _TextScreenState extends State<TextScreen> {
     });
   }
 
+  /// 位图字节数,和固件的 MAX_SCROLL_BYTES 对齐
+  static const _maxScrollBytes = 4096;
+
+  int _bitmapBytes(TextBitmap b) => b.width * ((b.height + 7) ~/ 8);
+
   void _send() {
     final bmp = _bmp;
     if (bmp == null) return;
     if (scrolling) {
+      // 超出固件缓冲会被静默丢弃,这里提前拦住并说清楚原因
+      final bytes = _bitmapBytes(bmp);
+      if (bytes > _maxScrollBytes) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: cardSurface,
+            content: Text(
+              '文字太长了($bytes 字节,上限 $_maxScrollBytes)。'
+              '请减少字数或调小字号。',
+              style: const TextStyle(color: textPrimary, fontSize: 13),
+            ),
+          ),
+        );
+        return;
+      }
       // 位图上传给灯板,滚动由灯板自己完成
       state.pushScrollText(
         bmp.width,

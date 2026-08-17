@@ -33,6 +33,7 @@ class _MusicScreenState extends State<MusicScreen>
   Ticker? _ticker;
   final _stopwatch = Stopwatch();
   int _lastSend = 0;
+  int _lastRender = 0;
 
   @override
   void initState() {
@@ -60,6 +61,10 @@ class _MusicScreenState extends State<MusicScreen>
     _ticker = createTicker((_) {
       if (!mounted) return;
       final t = _stopwatch.elapsedMilliseconds;
+      // 限到 ~30fps:每帧都要重建界面(频谱条 + 灯板预览),
+      // 跑满刷新率只是白烧 CPU 和电,视觉上没差别
+      if (t - _lastRender < 33) return;
+      _lastRender = t;
       final f = Frame(state.config.width, state.config.height);
       MusicEffects.render(
         f,
@@ -70,9 +75,10 @@ class _MusicScreenState extends State<MusicScreen>
         state.effectPalette,
         t,
       );
+      // touch() 已经会让整棵树重建,不用再 setState 一次
+      bands = _analyzer.bands;
       state.currentFrame = f;
       state.touch();
-      setState(() => bands = _analyzer.bands);
 
       // 只发频谱数据(20 字节),画面由灯板自己渲染,
       // 所以这里可以跑到 33fps 而不会塞满蓝牙。
