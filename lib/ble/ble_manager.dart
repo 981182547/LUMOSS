@@ -239,18 +239,27 @@ class BleManager implements LinkTransport {
     if (_state == Conn.scanning) _setState(Conn.disconnected);
   }
 
-  /// 扫描并自动连接第一个匹配的灯板(名字匹配优先)
+  /// 是不是我们的灯板。以广播里的服务 UUID 为准,不靠名字:
+  /// iOS 缓存 GAP 名称时 ESP32 可能被报成 "nimble",只看名字会认不出来。
+  static bool isPanel(ScanResult r) {
+    if (r.advertisementData.serviceUuids.contains(Guid(Protocol.serviceUuid))) {
+      return true;
+    }
+    return r.advertisementData.advName == Protocol.deviceName ||
+        r.device.platformName == Protocol.deviceName;
+  }
+
+  /// 扫描并自动连接第一个识别出来的灯板
   Future<void> connect() async {
     await startScan();
     if (scanResults.isEmpty) return;
 
-    // 优先选名字匹配的,其次第一个
-    final named = scanResults.where(
-      (r) => r.device.platformName == Protocol.deviceName,
-    );
-    final target =
-        named.isNotEmpty ? named.first.device : scanResults.first.device;
-    await connectTo(target);
+    final panels = scanResults.where(isPanel);
+    if (panels.isEmpty) {
+      _log('附近没有识别到灯板,请手动选择');
+      return;
+    }
+    await connectTo(panels.first.device);
   }
 
   // ---------------- 连接 ----------------

@@ -6,8 +6,31 @@ import '../ble/ble_manager.dart';
 import '../ble/protocol.dart';
 import '../theme.dart';
 
+/// 是不是我们的灯板。
+///
+/// 以【广播里的服务 UUID】为准,不靠名字判断:
+/// iOS 会缓存 GAP 名称,ESP32 用 NimBLE 协议栈时可能报成 "nimble",
+/// 只看名字就会认不出来。名字只作为补充判据。
+bool isLumosPanel(ScanResult r) {
+  if (r.advertisementData.serviceUuids.contains(Guid(Protocol.serviceUuid))) {
+    return true;
+  }
+  return r.advertisementData.advName == Protocol.deviceName ||
+      r.device.platformName == Protocol.deviceName;
+}
+
+/// 显示用的名字:优先用广播里的名字(最准),
+/// 其次系统缓存的名字,都没有才显示未命名。
+String panelDisplayName(ScanResult r) {
+  final adv = r.advertisementData.advName;
+  if (adv.isNotEmpty) return adv;
+  final p = r.device.platformName;
+  if (p.isNotEmpty) return p;
+  return '(未命名设备)';
+}
+
 /// 设备选择弹层:扫描附近蓝牙设备,点一个连接。
-/// 灯板(WeiDeng-LED)会排在最前面并高亮。
+/// 灯板会排在最前面并高亮。
 Future<void> showDevicePicker(BuildContext context, BleManager ble) {
   return showModalBottomSheet(
     context: context,
@@ -80,8 +103,8 @@ class _DevicePickerSheetState extends State<_DevicePickerSheet> {
   List<ScanResult> get _sorted {
     final list = [...ble.scanResults];
     list.sort((a, b) {
-      final an = a.device.platformName == Protocol.deviceName ? 1 : 0;
-      final bn = b.device.platformName == Protocol.deviceName ? 1 : 0;
+      final an = isLumosPanel(a) ? 1 : 0;
+      final bn = isLumosPanel(b) ? 1 : 0;
       if (an != bn) return bn - an;
       return b.rssi.compareTo(a.rssi);
     });
@@ -208,9 +231,8 @@ class _DeviceTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = result.device.platformName;
-    final isTarget = name == Protocol.deviceName;
-    final display = name.isEmpty ? '(未命名设备)' : name;
+    final isTarget = isLumosPanel(result);
+    final display = panelDisplayName(result);
 
     return GestureDetector(
       onTap: onTap,
