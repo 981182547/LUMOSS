@@ -113,6 +113,7 @@ class ControlScreen extends StatelessWidget {
                         maxHeight: 230,
                         // 双屏时按车尾真实样子显示:左右各一块,右边镜像
                         dualMirror: state.config.panels == 2,
+                        rightFrame: state.currentFrameRight,
                       ),
                       Positioned(
                         right: 6,

@@ -25,6 +25,10 @@ class LedPanelPreview extends StatelessWidget {
   /// 让用户看到的就是车屁股上的真实样子。
   final bool dualMirror;
 
+  /// 右屏单独的画面。给了就用它,不再镜像左屏 ——
+  /// 转向灯要求两侧独立(打左转只有左灯亮)。
+  final Frame? rightFrame;
+
   const LedPanelPreview({
     super.key,
     required this.frame,
@@ -32,6 +36,7 @@ class LedPanelPreview extends StatelessWidget {
     this.expandable = false,
     this.showGrid = false,
     this.dualMirror = false,
+    this.rightFrame,
   });
 
   @override
@@ -40,12 +45,17 @@ class LedPanelPreview extends StatelessWidget {
     return _buildSingle(context);
   }
 
-  /// 左右两块,右边是左边的镜像
+  /// 左右两块。默认右边是左边的镜像;给了 rightFrame 就直接用它
   Widget _buildDual(BuildContext context) {
-    final mirrored = Frame(frame.width, frame.height);
-    for (var y = 0; y < frame.height; y++) {
-      for (var x = 0; x < frame.width; x++) {
-        mirrored.set(x, y, frame.get(frame.width - 1 - x, y));
+    Frame mirrored;
+    if (rightFrame != null) {
+      mirrored = rightFrame!;
+    } else {
+      mirrored = Frame(frame.width, frame.height);
+      for (var y = 0; y < frame.height; y++) {
+        for (var x = 0; x < frame.width; x++) {
+          mirrored.set(x, y, frame.get(frame.width - 1 - x, y));
+        }
       }
     }
     Widget row = Row(

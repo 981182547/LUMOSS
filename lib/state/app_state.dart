@@ -80,6 +80,11 @@ class AppState extends ChangeNotifier {
   ConnState conn = ConnState.disconnected;
   String statusLog = '';
   Frame currentFrame = Frame(16, 16);
+
+  /// 右屏画面。为空时右屏由左屏镜像得到(绝大多数内容都是这样);
+  /// 只有转向灯需要两块独立 —— 打左转只有左灯亮。
+  Frame? currentFrameRight;
+
   Mode mode = const ModeIdle();
 
   // ---- 特效参数 ----
@@ -240,11 +245,28 @@ class AppState extends ChangeNotifier {
       final f = Frame(config.width, config.height);
       Effects.render(f, m.id, t, effectSpeed, effectIntensity, effectColor, effectPalette);
       currentFrame = f;
+      currentFrameRight = null;
       notifyListeners();
     } else if (m is ModeTail) {
-      final f = Frame(config.width, config.height);
-      Taillight.render(f, m.mode, tailStyle, t, tailSpeed);
-      currentFrame = f;
+      final turning =
+          m.mode == Taillight.modeTurnL || m.mode == Taillight.modeTurnR;
+      if (config.panels >= 2 && turning) {
+        // 转向:只有对应那侧动,另一侧熄灭,而且流水方向朝车外
+        final left = Frame(config.width, config.height);
+        final right = Frame(config.width, config.height);
+        if (m.mode == Taillight.modeTurnL) {
+          Taillight.render(left, Taillight.modeTurnL, tailStyle, t, tailSpeed);
+        } else {
+          Taillight.render(right, Taillight.modeTurnR, tailStyle, t, tailSpeed);
+        }
+        currentFrame = left;
+        currentFrameRight = right;
+      } else {
+        final f = Frame(config.width, config.height);
+        Taillight.render(f, m.mode, tailStyle, t, tailSpeed);
+        currentFrame = f;
+        currentFrameRight = null;
+      }
       notifyListeners();
     }
     // 图片/动画/静止由各自界面设置

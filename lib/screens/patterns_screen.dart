@@ -87,6 +87,7 @@ class _PatternsScreenState extends State<PatternsScreen> {
                     frame: state.currentFrame,
                     maxHeight: 240,
                     dualMirror: state.config.panels == 2,
+                    rightFrame: state.currentFrameRight,
                   ),
                 ),
 

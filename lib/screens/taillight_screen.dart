@@ -73,7 +73,13 @@ class _TaillightScreenState extends State<TaillightScreen> {
                 Glass(
                   radius: 20,
                   padding: const EdgeInsets.all(10),
-                  child: LedPanelPreview(frame: state.currentFrame),
+                  child: LedPanelPreview(
+                    frame: state.currentFrame,
+                    maxHeight: 240,
+                    // 转向灯只亮一侧,必须按双屏真实样子预览才看得出来
+                    dualMirror: state.config.panels == 2,
+                    rightFrame: state.currentFrameRight,
+                  ),
                 ),
 
                 const SizedBox(height: 16),
