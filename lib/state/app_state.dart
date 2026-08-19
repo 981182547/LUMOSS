@@ -376,7 +376,13 @@ class AppState extends ChangeNotifier {
     mode = const ModePicture();
     currentFrame = frame;
     notifyListeners();
-    await _sendBulk(Protocol.frame(Protocol.opFrame, frame.toRgbBytes(config)));
+    final msg = Protocol.frame(Protocol.opFrame, frame.toRgbBytes(config));
+    _beginBulk(msg.length, '正在发送画面');
+    try {
+      await _sendBulk(msg);
+    } finally {
+      _endBulk();
+    }
   }
 
   /// 发送图案。静态图当整帧发,动图走动画上传通道。
@@ -458,12 +464,58 @@ class AppState extends ChangeNotifier {
     _panelModeFor(symmetric: false); // 文字镜像后是反的,必须复制
     mode = const ModeScroll();
     notifyListeners();
-    await _sendBulk(Protocol.scroll(bitmapWidth, height, color, speed, bits));
+    final msg = Protocol.scroll(bitmapWidth, height, color, speed, bits);
+    _beginBulk(msg.length, '正在发送文字');
+    try {
+      await _sendBulk(msg);
+    } finally {
+      _endBulk();
+    }
   }
 
   // ---- 传输进度(0..1,null 表示空闲),供界面显示进度条 ----
   double? sendProgress;
   String sendLabel = '';
+
+  // 按【已发字节数】算进度,而不是按帧 —— 单帧也有进度,动画的进度条也是连续的
+  int _bulkTotal = 0;
+  int _bulkSent = 0;
+  String _bulkLabel = '';
+  DateTime _bulkStart = DateTime.now();
+
+  /// 小于这个字节数就不弹进度浮层,免得一闪而过反而干扰
+  static const _progressThreshold = 2000;
+
+  void _beginBulk(int totalBytes, String label) {
+    _bulkTotal = totalBytes;
+    _bulkSent = 0;
+    _bulkLabel = label;
+    _bulkStart = DateTime.now();
+    if (totalBytes >= _progressThreshold) _setProgress(0, label);
+  }
+
+  /// 由蓝牙层每写完一个分片调用
+  void onBytesWritten(int bytes) {
+    if (_bulkTotal <= 0) return;
+    _bulkSent += bytes;
+    if (_bulkTotal < _progressThreshold) return;
+
+    final p = (_bulkSent / _bulkTotal).clamp(0.0, 1.0);
+    // 顺便估算剩余时间,大动画传起来才不至于让人干等
+    final elapsed = DateTime.now().difference(_bulkStart).inMilliseconds;
+    var label = _bulkLabel;
+    if (elapsed > 800 && p > 0.03 && p < 0.99) {
+      final remain = (elapsed / p * (1 - p) / 1000).round();
+      label = '$_bulkLabel · 约剩 $remain 秒';
+    }
+    _setProgress(p, label);
+  }
+
+  void _endBulk() {
+    _bulkTotal = 0;
+    _bulkSent = 0;
+    _setProgress(null);
+  }
 
   void _setProgress(double? v, [String label = '']) {
     sendProgress = v;
@@ -492,15 +544,14 @@ class AppState extends ChangeNotifier {
     if (link == null) return;
 
     try {
-      _setProgress(0, '正在上传动画…');
+      _beginBulk(totalBytes, '正在上传动画 ${frames.length} 帧');
       await link.sendPacket(Protocol.animBegin(frames.length, delayMs));
       for (var i = 0; i < frames.length; i++) {
         await link.sendPacket(Protocol.animFrame(i, frames[i]));
-        _setProgress((i + 1) / frames.length, '正在上传动画 ${i + 1}/${frames.length}');
       }
       await link.sendPacket(Protocol.animEnd());
     } finally {
-      _setProgress(null);
+      _endBulk();
     }
   }
 

@@ -26,12 +26,17 @@ class BleManager implements LinkTransport {
   /// 收到灯板主动上报的数据(通过 Notify 特征)
   final void Function(int op, List<int> payload)? onDeviceMessage;
 
+  /// 每写完一个分片回调已发字节数,供界面显示进度条。
+  /// 按分片而不是按整包上报,大数据传输时进度才是连续的。
+  final void Function(int bytes)? onBytesWritten;
+
   BleManager({
     required this.onState,
     this.onLog = _noop,
     this.onScanUpdate,
     this.onRemember,
     this.onDeviceMessage,
+    this.onBytesWritten,
   });
   static void _noop(String _) {}
 
@@ -444,11 +449,39 @@ class BleManager implements LinkTransport {
   Future<void> _writeChunks(Uint8List msg) async {
     final c = _rx;
     if (c == null) return;
-    final noResp = !c.properties.write && c.properties.writeWithoutResponse;
+
+    // 能用"不等回执"就一定要用。
+    // 带响应写每片都要等灯板 ACK,一个连接间隔只能发一片;
+    // 连接间隔 200ms 时 2400 字节要 2 秒,传个 10 帧动画就要一分钟。
+    // 不等回执可以在一个连接事件里连发多片,吞吐差 5~10 倍。
+    final canFast = c.properties.writeWithoutResponse;
     var i = 0;
+    var since = 0;
     while (i < msg.length) {
       final end = (i + _chunkSize < msg.length) ? i + _chunkSize : msg.length;
-      await c.write(msg.sublist(i, end), withoutResponse: noResp);
+      final chunk = msg.sublist(i, end);
+
+      if (canFast) {
+        await c.write(chunk, withoutResponse: true);
+        onBytesWritten?.call(chunk.length);
+        since++;
+        // 不等回执没有流控,连发太多会把协议栈缓冲冲爆导致丢包。
+        // 每若干片插一次带响应的写当同步点,既保住速度又不丢数据。
+        if (since >= 8 && c.properties.write && end < msg.length) {
+          since = 0;
+          final next = (end + _chunkSize < msg.length)
+              ? end + _chunkSize
+              : msg.length;
+          final sync = msg.sublist(end, next);
+          await c.write(sync, withoutResponse: false);
+          onBytesWritten?.call(sync.length);
+          i = next;
+          continue;
+        }
+      } else {
+        await c.write(chunk, withoutResponse: false);
+        onBytesWritten?.call(chunk.length);
+      }
       i = end;
     }
   }

@@ -92,6 +92,8 @@ class _HomePageState extends State<HomePage> {
       onRemember: state.rememberDevice,
       // 灯板主动上报的状态(心跳 / 当前模式等)
       onDeviceMessage: state.onDeviceMessage,
+      // 分片级进度,传大数据时界面显示 0~100%
+      onBytesWritten: state.onBytesWritten,
     );
 
     // 启动时自动连回上次的灯板,省掉每次手动选设备
